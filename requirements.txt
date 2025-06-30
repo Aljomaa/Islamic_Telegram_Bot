@@ -1,5 +1,7 @@
-pyTelegramBotAPI
-requests
-pymongo
-python-dotenv
-flask
+pyTelegramBotAPI==4.12.0
+Flask==2.3.3
+pymongo==4.6.1
+requests==2.31.0
+python-dotenv==1.0.1
+APScheduler==3.10.4
+gunicorn==21.2.0
