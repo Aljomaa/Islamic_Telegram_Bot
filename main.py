@@ -1,28 +1,33 @@
 import telebot
 from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith
+from tasks import reminders
+from utils.db import register_user
 
 import threading
 from flask import Flask
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# ✅ تسجيل المستخدم عند /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
+    register_user(msg.from_user)
+
     bot.reply_to(msg, """🌙 مرحبًا بك في البوت الإسلامي!
 
 🕌 /prayer - أوقات الصلاة  
 📖 /quran - عرض سورة  
-🔊 /ayah - تلاوة آية  
+🔊 /ayah - تلاوة آية أو تصفح القرآن  
 📿 /athkar - الأذكار اليومية  
-📜 /hadith - حديث عشوائي  
-🔍 /search_hadith - بحث في الأحاديث  
+📜 /hadith - عرض حديث من الكتب الستة  
+🔍 /search_hadith - (سيضاف لاحقاً) بحث في الأحاديث  
 ⭐ /fav - المفضلة  
-📝 /complain - شكوى  
-🧑‍💼 /admin - لوحة التحكم
+📝 /complain - إرسال شكوى أو اقتراح  
+🧑‍💼 /admin - لوحة تحكم المشرف
 """)
 
-# تسجيل الأوامر
+# ✅ تسجيل جميع الأوامر
 prayers.register(bot)
 quran.register(bot)
 athkar.register(bot)
@@ -30,12 +35,13 @@ favorites.register(bot)
 complaints.register(bot)
 admin.register(bot)
 hadith.register(bot)
+reminders.register(bot)
 
-# تشغيل البوت في خيط منفصل
+# ✅ تشغيل البوت في خيط منفصل
 def run_bot():
     bot.infinity_polling()
 
-# خادم Flask وهمي لتخطي فحص Render
+# ✅ خادم Flask لتجاوز قيود Render
 app = Flask(__name__)
 
 @app.route('/')
