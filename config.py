@@ -3,7 +3,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# توكن البوت
 BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+# رابط الاتصال بقاعدة البيانات MongoDB
 MONGO_URI = os.getenv("MONGO_URI")
-HADITH_API_KEY = os.getenv("HADITH_API_KEY")
-ADMIN_ID = 6849903309  # هذا رقمك
+
+# معرف الأدمن (أنت)
+ADMIN_ID = 6849903309
