@@ -4,14 +4,15 @@ from config import MONGO_URI
 client = MongoClient(MONGO_URI)
 db = client["islamic_bot"]
 
-# مجموعات البيانات
 user_col = db["users"]
 comp_col = db["complaints"]
 
 # ===============================
 # ✅ تسجيل المستخدم الجديد
 # ===============================
-def register_user(user_id):
+def register_user(user):
+    # إذا استقبلنا كائن المستخدم كامل، نأخذ فقط id
+    user_id = user.id if hasattr(user, 'id') else user
     if not user_col.find_one({"_id": user_id}):
         user_col.insert_one({"_id": user_id})
 
@@ -89,14 +90,17 @@ def set_user_reciter(user_id, reciter):
 def get_complaints():
     return list(comp_col.find({"status": "open"}))
 
-def reply_to_complaint(comp_id, reply_text):
+def reply_to_complaint(comp_id, reply_text, bot=None):
     comp = comp_col.find_one({"_id": comp_id})
     if not comp:
         return False
     user_id = comp["user_id"]
     try:
-        from loader import bot
-        bot.send_message(user_id, f"📩 رد الإدارة على شكواك:\n\n{reply_text}")
+        if bot:
+            bot.send_message(user_id, f"📩 رد الإدارة على شكواك:\n\n{reply_text}")
+        else:
+            from loader import bot as default_bot
+            default_bot.send_message(user_id, f"📩 رد الإدارة على شكواك:\n\n{reply_text}")
         comp_col.update_one({"_id": comp_id}, {"$set": {"status": "closed"}})
         return True
     except:
@@ -107,12 +111,15 @@ def reply_to_complaint(comp_id, reply_text):
 # 📊 الإحصائيات
 # ===============================
 def get_bot_stats():
+    total_favorites_agg = list(user_col.aggregate([
+        {"$project": {"count": {"$size": {"$ifNull": ["$favorites", []]}}}},
+        {"$group": {"_id": None, "total": {"$sum": "$count"}}}
+    ]))
+    total_favorites = total_favorites_agg[0]["total"] if total_favorites_agg else 0
+
     return {
         "total_users": user_col.count_documents({}),
-        "total_favorites": user_col.aggregate([
-            {"$project": {"count": {"$size": {"$ifNull": ["$favorites", []]}}}},
-            {"$group": {"_id": None, "total": {"$sum": "$count"}}}
-        ]).next().get("total", 0),
+        "total_favorites": total_favorites,
         "total_complaints": comp_col.count_documents({})
     }
 
