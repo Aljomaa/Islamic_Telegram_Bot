@@ -11,7 +11,6 @@ comp_col = db["complaints"]
 # ✅ تسجيل المستخدم الجديد
 # ===============================
 def register_user(user):
-    # إذا استقبلنا كائن المستخدم كامل، نأخذ فقط id
     user_id = user.id if hasattr(user, 'id') else user
     if not user_col.find_one({"_id": user_id}):
         user_col.insert_one({"_id": user_id})
@@ -48,7 +47,10 @@ def get_user_timezone(user_id):
 # ===============================
 def user_notifications_enabled(user_id):
     user = user_col.find_one({"_id": user_id})
-    return user.get("notifications_enabled", False) if user else False
+    return user.get("notifications_enabled", True) if user else True
+
+def enable_notifications(user_id):
+    user_col.update_one({"_id": user_id}, {"$set": {"notifications_enabled": True}})
 
 def disable_notifications(user_id):
     user_col.update_one({"_id": user_id}, {"$set": {"notifications_enabled": False}})
@@ -127,12 +129,12 @@ def get_bot_stats():
 # ===============================
 # 📢 الرسائل الجماعية
 # ===============================
-def get_all_users():
-    return list(user_col.find({}, {"_id": 1}))
+def get_all_user_ids():
+    return [doc["_id"] for doc in user_col.find({}, {"_id": 1})]
 
 def broadcast_message(bot, message_text):
-    for user in get_all_users():
+    for user_id in get_all_user_ids():
         try:
-            bot.send_message(user["_id"], message_text)
+            bot.send_message(user_id, message_text)
         except:
             continue
