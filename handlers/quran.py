@@ -11,7 +11,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# API الأساسي (البديل الموثوق)
 API_BASE = "https://api.alquran.cloud/v1"
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
@@ -19,21 +18,8 @@ HEADERS = {
 
 def register(bot):
     @bot.message_handler(commands=['quran', 'قرآن'])
-    def show_main_quran_menu(msg):
-        try:
-            markup = InlineKeyboardMarkup()
-            markup.row(
-                InlineKeyboardButton("📖 تصفح السور", callback_data="browse_quran"),
-                InlineKeyboardButton("🕋 آية عشوائية", callback_data="random_ayah")
-            )
-            markup.row(
-                InlineKeyboardButton("🔍 تفسير آية", callback_data="tafsir_menu"),
-                InlineKeyboardButton("🗃 المفضلة", callback_data="favorite_verses")
-            )
-            bot.send_message(msg.chat.id, "🌙 القرآن الكريم - اختر أحد الخيارات:", reply_markup=markup)
-        except Exception as e:
-            logger.error(f"Error in main menu: {str(e)}", exc_info=True)
-            bot.send_message(msg.chat.id, "❌ حدث خطأ في عرض القائمة الرئيسية")
+    def cmd_quran(msg):
+        show_main_quran_menu(bot, msg)
 
     @bot.callback_query_handler(func=lambda call: call.data == "browse_quran")
     def ask_surah_number(call):
@@ -56,6 +42,33 @@ def register(bot):
         except Exception as e:
             logger.error(f"Error processing surah number: {str(e)}", exc_info=True)
             bot.send_message(msg.chat.id, "❌ حدث خطأ في معالجة رقم السورة")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "random_ayah")
+    def send_random_verse(call):
+        try:
+            surah_num = random.randint(1, 114)
+            res = requests.get(
+                f"{API_BASE}/surah/{surah_num}/ar.alafasy",
+                headers=HEADERS,
+                timeout=10
+            )
+            res.raise_for_status()
+            data = res.json()
+
+            verses = data['data']['ayahs']
+            ayah = random.choice(verses)
+
+            send_verse_details(
+                chat_id=call.message.chat.id,
+                surah_num=surah_num,
+                ayah_num=ayah['numberInSurah'],
+                message_id=call.message.message_id,
+                edit=True
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting random verse: {str(e)}", exc_info=True)
+            bot.send_message(call.message.chat.id, "❌ تعذر جلب آية عشوائية. حاول لاحقاً.")
 
     def send_surah_info(chat_id, surah_num, message_id=None):
         try:
@@ -96,33 +109,6 @@ def register(bot):
         except Exception as e:
             logger.error(f"Error showing surah info: {str(e)}", exc_info=True)
             bot.send_message(chat_id, "❌ حدث خطأ في عرض بيانات السورة")
-
-    @bot.callback_query_handler(func=lambda call: call.data == "random_ayah")
-    def send_random_verse(call):
-        try:
-            surah_num = random.randint(1, 114)
-            res = requests.get(
-                f"{API_BASE}/surah/{surah_num}/ar.alafasy",
-                headers=HEADERS,
-                timeout=10
-            )
-            res.raise_for_status()
-            data = res.json()
-
-            verses = data['data']['ayahs']
-            ayah = random.choice(verses)
-
-            send_verse_details(
-                chat_id=call.message.chat.id,
-                surah_num=surah_num,
-                ayah_num=ayah['numberInSurah'],
-                message_id=call.message.message_id,
-                edit=True
-            )
-
-        except Exception as e:
-            logger.error(f"Error getting random verse: {str(e)}", exc_info=True)
-            bot.send_message(call.message.chat.id, "❌ تعذر جلب آية عشوائية. حاول لاحقاً.")
 
     def send_verse_details(chat_id, surah_num, ayah_num, message_id=None, edit=False):
         try:
@@ -220,9 +206,9 @@ def register(bot):
                     'surah': data['data']['name'],
                     'number': ayah_num,
                     'text': verse['text'],
-                    'audio': verse['audio']
+                    'audio': verse.get('audio')
                 }
-                add_to_fav(call.from_user.id, content)
+                add_to_fav(call.from_user.id, "quran", content)
                 bot.answer_callback_query(call.id, "✅ تمت الإضافة إلى المفضلة")
             else:
                 bot.answer_callback_query(call.id, "❌ تعذر العثور على الآية")
@@ -248,10 +234,30 @@ def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data == "quran_main")
     def back_to_main(call):
         try:
-            show_main_quran_menu(call.message)
+            show_main_quran_menu(bot, call.message)
         except Exception as e:
             logger.error(f"Error returning to main: {str(e)}", exc_info=True)
             bot.send_message(call.message.chat.id, "❌ تعذر العودة للقائمة الرئيسية")
 
+
+# ✅ هذا هو المطلوب استدعاؤه من main.py
+def show_main_quran_menu(bot, msg):
+    try:
+        markup = InlineKeyboardMarkup()
+        markup.row(
+            InlineKeyboardButton("📖 تصفح السور", callback_data="browse_quran"),
+            InlineKeyboardButton("🕋 آية عشوائية", callback_data="random_ayah")
+        )
+        markup.row(
+            InlineKeyboardButton("🔍 تفسير آية", callback_data="tafsir_menu"),
+            InlineKeyboardButton("🗃 المفضلة", callback_data="favorite_verses")
+        )
+        bot.send_message(msg.chat.id, "🌙 القرآن الكريم - اختر أحد الخيارات:", reply_markup=markup)
+    except Exception as e:
+        logger.error(f"Error in main quran menu: {str(e)}", exc_info=True)
+        bot.send_message(msg.chat.id, "❌ حدث خطأ في عرض قائمة القرآن")
+
+
+# إذا كان هناك داعٍ لتسجيل شيء إضافي لاحقاً
 def handle_callbacks(bot):
     pass
