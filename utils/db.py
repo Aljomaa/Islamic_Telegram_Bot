@@ -9,6 +9,36 @@ user_col = db["users"]        # بيانات المستخدمين
 comp_col = db["complaints"]   # الشكاوى والاقتراحات
 
 # ===============================
+# ⭐ نظام المفضلة
+# ===============================
+
+def add_to_fav(user_id, type_, content):
+    user_col.update_one(
+        {"_id": user_id},
+        {"$push": {"favorites": {"type": type_, "content": content}}},
+        upsert=True
+    )
+
+def get_user_favs(user_id):
+    user = user_col.find_one({"_id": user_id})
+    return user.get("favorites", []) if user else []
+
+# ===============================
+# 🎧 القارئ المفضل
+# ===============================
+
+def get_user_reciter(user_id):
+    user = user_col.find_one({"_id": user_id})
+    return user.get("reciter") if user and "reciter" in user else None
+
+def set_user_reciter(user_id, reciter):
+    user_col.update_one(
+        {"_id": user_id},
+        {"$set": {"reciter": reciter}},
+        upsert=True
+    )
+
+# ===============================
 # 📍 الموقع والتوقيت والإشعارات
 # ===============================
 
@@ -45,57 +75,28 @@ def disable_notifications(user_id):
     )
 
 # ===============================
-# ⭐ نظام المفضلة
+# 🧑‍💼 نظام الشكاوى
 # ===============================
 
-def add_to_fav(user_id, type_, content):
-    user_col.update_one(
-        {"_id": user_id},
-        {"$push": {"favorites": {"type": type_, "content": content}}},
-        upsert=True
-    )
-
-def get_user_favs(user_id):
-    user = user_col.find_one({"_id": user_id})
-    return user.get("favorites", []) if user else []
-
-# ===============================
-# 🎧 القارئ المفضل
-# ===============================
-
-def get_user_reciter(user_id):
-    user = user_col.find_one({"_id": user_id})
-    return user.get("reciter") if user and "reciter" in user else None
-
-def set_user_reciter(user_id, reciter):
-    user_col.update_one(
-        {"_id": user_id},
-        {"$set": {"reciter": reciter}},
-        upsert=True
-    )
-
-# ===============================
-# 🧾 الشكاوى والاقتراحات
-# ===============================
-
-def save_complaint(user_id, complaint):
+def add_complaint(user_id, complaint):
     comp_col.insert_one({
         "user_id": user_id,
-        "message": complaint,
-        "replies": []
+        "text": complaint,
+        "status": "open",
+        "reply": None
     })
 
 def get_complaints():
-    return list(comp_col.find())
+    return list(comp_col.find().sort("_id", -1))
 
-def reply_to_complaint(complaint_id, reply):
+def reply_to_complaint(complaint_id, reply_text):
     comp_col.update_one(
         {"_id": complaint_id},
-        {"$push": {"replies": reply}}
+        {"$set": {"reply": reply_text, "status": "replied"}}
     )
 
 # ===============================
-# 📊 الإحصائيات
+# 📊 إحصائيات
 # ===============================
 
 def register_user(user_id):
@@ -111,16 +112,8 @@ def get_bot_stats():
     return total_users, total_complaints
 
 # ===============================
-# 📢 الرسائل الجماعية (Broadcast)
+# 📬 البث الجماعي
 # ===============================
 
-def get_all_user_ids():
-    return [u["_id"] for u in user_col.find({}, {"_id": 1})]
-
-def broadcast_message(bot, text):
-    user_ids = get_all_user_ids()
-    for uid in user_ids:
-        try:
-            bot.send_message(uid, text)
-        except:
-            continue
+def get_all_users():
+    return list(user_col.find({}))
