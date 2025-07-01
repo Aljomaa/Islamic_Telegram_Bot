@@ -13,13 +13,18 @@ BOOKS = {
     "nasai": "📒 سنن النسائي"
 }
 
+# 📜 عرض قائمة مصادر الحديث
+def show_hadith_menu(bot, msg):
+    markup = InlineKeyboardMarkup()
+    for key, name in BOOKS.items():
+        markup.add(InlineKeyboardButton(name, callback_data=f"hadith_book:{key}"))
+    bot.send_message(msg.chat.id, "📚 اختر مصدر الحديث:", reply_markup=markup)
+
+# ✅ تسجيل معالجات الأوامر والأزرار
 def register(bot):
     @bot.message_handler(commands=['hadith'])
-    def hadith_menu(msg):
-        markup = InlineKeyboardMarkup()
-        for key, name in BOOKS.items():
-            markup.add(InlineKeyboardButton(name, callback_data=f"hadith_book:{key}"))
-        bot.send_message(msg.chat.id, "📚 اختر مصدر الحديث:", reply_markup=markup)
+    def hadith_command(msg):
+        show_hadith_menu(bot, msg)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_book:"))
     def send_random_hadith(call):
@@ -32,12 +37,12 @@ def register(bot):
             hadiths = data["hadiths"]
 
             index = random.randint(0, len(hadiths) - 1)
-            return send_hadith(call.message.chat.id, book_key, index, call.message.message_id, edit=True)
+            return send_hadith(bot, call.message.chat.id, book_key, index, call.message.message_id, edit=True)
         except Exception as e:
             print(f"[ERROR] Hadith fetch: {e}")
             bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء جلب الحديث.")
 
-    def send_hadith(chat_id, book_key, index, message_id=None, edit=False):
+    def send_hadith(bot, chat_id, book_key, index, message_id=None, edit=False):
         try:
             url = f"{API_URL}/{book_key}.json"
             res = requests.get(url, timeout=10)
@@ -80,7 +85,7 @@ def register(bot):
     def navigate_hadiths(call):
         try:
             _, book_key, index = call.data.split(":")
-            send_hadith(call.message.chat.id, book_key, int(index), call.message.message_id, edit=True)
+            send_hadith(bot, call.message.chat.id, book_key, int(index), call.message.message_id, edit=True)
         except Exception as e:
             print(f"[ERROR] Navigate hadith: {e}")
             bot.answer_callback_query(call.id, "❌ تعذر التنقل بين الأحاديث")
