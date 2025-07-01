@@ -1,122 +1,121 @@
 import threading
 import time
-import datetime
+from datetime import datetime, timedelta
+from utils.db import (
+    get_all_user_ids,
+    get_user_location,
+    get_user_reminder_settings
+)
 import requests
 import pytz
-from utils.db import get_all_users, get_user_location, get_user_timezone, user_notifications_enabled
 from telebot import TeleBot
 from config import BOT_TOKEN
 
 bot = TeleBot(BOT_TOKEN)
+API_PRAYER = "http://api.aladhan.com/v1/timings"
 
-# ========================================================
-# 📌 دالة إرسال رسالة جماعية (تُستخدم داخل المهام)
-# ========================================================
-def broadcast_message(user_ids, text):
-    for uid in user_ids:
-        try:
-            bot.send_message(uid, text, parse_mode="Markdown")
-        except:
+def send_adhkar(user_id, time_of_day):
+    """إرسال أذكار الصباح أو المساء"""
+    if time_of_day == 'morning':
+        text = "🌅 أذكار الصباح:\n\n🕌 {اذكر الله وابدأ يومك ببركة!}"
+    elif time_of_day == 'evening':
+        text = "🌇 أذكار المساء:\n\n🌙 {تحصّن بأذكار المساء قبل غروب الشمس}"
+    else:
+        return
+    try:
+        bot.send_message(user_id, text)
+    except Exception as e:
+        print(f"[ERROR] إرسال أذكار {time_of_day}: {e}")
+
+def send_jumuah_reminder(user_id):
+    """إرسال تذكير الجمعة"""
+    msg = (
+        "📿 جمعة مباركة!\n\n"
+        "📖 لا تنس قراءة سورة الكهف اليوم.\n"
+        "💌 وأكثر من الصلاة على النبي ﷺ.\n\n"
+        "اللهم صلِّ وسلم على نبينا محمد"
+    )
+    try:
+        bot.send_message(user_id, msg)
+    except Exception as e:
+        print(f"[ERROR] تذكير الجمعة: {e}")
+
+def send_prayer_reminders():
+    """إرسال تنبيهات الصلاة قبل 10 دقائق"""
+    now = datetime.utcnow()
+    users = get_all_user_ids()
+
+    for user_id in users:
+        loc = get_user_location(user_id)
+        if not loc:
             continue
 
-# ========================================================
-# 📿 أذكار الصباح والمساء حسب التوقيت المحلي
-# ========================================================
-def send_morning_evening_adhkar():
-    while True:
-        now_utc = datetime.datetime.utcnow()
-        for user in get_all_users():
-            if not user_notifications_enabled(user["_id"]):
-                continue
-
-            tz = pytz.timezone(user.get("timezone", "Asia/Riyadh"))
-            user_now = now_utc.replace(tzinfo=pytz.utc).astimezone(tz)
-            hour = user_now.hour
-            minute = user_now.minute
-
-            # الساعة 7 صباحاً
-            if hour == 7 and minute == 0 and not user.get("sent_morning"):
-                try:
-                    bot.send_message(user["_id"], "☀️ *أذكار الصباح*:\nhttps://salla.sa/s/Zz0Rwo", parse_mode="Markdown")
-                    user["sent_morning"] = True
-                except:
-                    continue
-
-            # الساعة 7 مساءً
-            if hour == 19 and minute == 0 and not user.get("sent_evening"):
-                try:
-                    bot.send_message(user["_id"], "🌙 *أذكار المساء*:\nhttps://salla.sa/s/mLNnxW", parse_mode="Markdown")
-                    user["sent_evening"] = True
-                except:
-                    continue
-
-        time.sleep(60)
-
-# ========================================================
-# 🕌 تذكير قبل الصلاة بـ 10 دقائق (حسب موقع المستخدم)
-# ========================================================
-def notify_prayer():
-    while True:
-        now_utc = datetime.datetime.utcnow()
-
-        for user in get_all_users():
-            if not user_notifications_enabled(user["_id"]):
-                continue
-
-            lat, lon = get_user_location(user["_id"])
-            if not lat or not lon:
-                continue
-
-            tz = pytz.timezone(user.get("timezone", "Asia/Riyadh"))
-            user_now = now_utc.replace(tzinfo=pytz.utc).astimezone(tz)
-
-            date = user_now.strftime("%Y-%m-%d")
-            res = requests.get(f"https://api.aladhan.com/v1/timings/{date}?latitude={lat}&longitude={lon}&method=4")
-            if res.status_code != 200:
-                continue
-
-            timings = res.json()["data"]["timings"]
-            for prayer, time_str in timings.items():
-                try:
-                    hour, minute = map(int, time_str.split(":"))
-                    prayer_time = user_now.replace(hour=hour, minute=minute, second=0, microsecond=0)
-                    delta = (prayer_time - user_now).total_seconds()
-
-                    if 540 <= delta <= 600:  # من 9 إلى 10 دقائق قبل الصلاة
-                        bot.send_message(user["_id"], f"🕌 بقي 10 دقائق على صلاة {prayer}.\nاستعد للصلاة 🌙")
-                except:
-                    continue
-
-        time.sleep(60)
-
-# ========================================================
-# 📜 تذكير يوم الجمعة
-# ========================================================
-def send_friday_reminder():
-    while True:
-        now_utc = datetime.datetime.utcnow()
-        weekday = now_utc.weekday()
-
-        if weekday == 4 and now_utc.hour == 9 and now_utc.minute == 0:
-            msg = (
-                "🕌 *جمعة مباركة!*\n\n"
-                "📖 لا تنسَ قراءة *سورة الكهف*\n"
-                "🕋 وأكثِر من الصلاة على النبي ﷺ:\n"
-                "_اللهم صل وسلم على نبينا محمد عدد ما ذكره الذاكرون وغفل عن ذكره الغافلون_ ❤️"
+        lat, lon = loc
+        try:
+            response = requests.get(
+                f"{API_PRAYER}?latitude={lat}&longitude={lon}&method=4",
+                timeout=10
             )
-            users = [u["_id"] for u in get_all_users() if user_notifications_enabled(u["_id"])]
-            broadcast_message(users, msg)
+            timings = response.json()["data"]["timings"]
 
-        time.sleep(60)
+            prayers = {
+                "Fajr": "الفجر",
+                "Dhuhr": "الظهر",
+                "Asr": "العصر",
+                "Maghrib": "المغرب",
+                "Isha": "العشاء"
+            }
 
-# ========================================================
-# ✅ بدء كل المهام في خيوط منفصلة
-# ========================================================
+            for key, name in prayers.items():
+                prayer_time = datetime.strptime(timings[key], "%H:%M")
+                now_local = now + timedelta(hours=3)  # Adjust to user's timezone (estimate)
+                if prayer_time.hour == now_local.hour and prayer_time.minute - now_local.minute == 10:
+                    bot.send_message(user_id, f"🕌 اقترب موعد صلاة {name} بعد 10 دقائق.")
+        except Exception as e:
+            print(f"[ERROR] أوقات الصلاة للمستخدم {user_id}: {e}")
+
 def start_reminders():
-    threading.Thread(target=send_morning_evening_adhkar, daemon=True).start()
-    threading.Thread(target=notify_prayer, daemon=True).start()
-    threading.Thread(target=send_friday_reminder, daemon=True).start()
+    """تشغيل التذكيرات في خيوط منفصلة"""
 
-# دالة register فارغة لتجنب الخطأ (اختياري)
-def register(bot):
-    pass
+    def adhkar_loop():
+        while True:
+            now = datetime.utcnow() + timedelta(hours=3)
+            if now.hour == 7 and now.minute == 0:
+                for uid in get_all_user_ids():
+                    settings = get_user_reminder_settings(uid)
+                    if settings.get("morning_adhkar", True):
+                        send_adhkar(uid, "morning")
+                time.sleep(60)
+
+            elif now.hour == 19 and now.minute == 0:
+                for uid in get_all_user_ids():
+                    settings = get_user_reminder_settings(uid)
+                    if settings.get("evening_adhkar", True):
+                        send_adhkar(uid, "evening")
+                time.sleep(60)
+            else:
+                time.sleep(30)
+
+    def jumuah_loop():
+        while True:
+            now = datetime.utcnow() + timedelta(hours=3)
+            if now.weekday() == 4 and now.hour == 9 and now.minute == 0:
+                for uid in get_all_user_ids():
+                    settings = get_user_reminder_settings(uid)
+                    if settings.get("jumuah", True):
+                        send_jumuah_reminder(uid)
+                time.sleep(60)
+            else:
+                time.sleep(60)
+
+    def prayer_loop():
+        while True:
+            for uid in get_all_user_ids():
+                settings = get_user_reminder_settings(uid)
+                if settings.get("prayer", True):
+                    send_prayer_reminders()
+            time.sleep(60)
+
+    threading.Thread(target=adhkar_loop, daemon=True).start()
+    threading.Thread(target=jumuah_loop, daemon=True).start()
+    threading.Thread(target=prayer_loop, daemon=True).start()
