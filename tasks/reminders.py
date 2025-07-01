@@ -113,6 +113,10 @@ def send_friday_reminder():
 # ✅ بدء كل المهام في خيوط منفصلة
 # ========================================================
 def start_reminders():
-    threading.Thread(target=send_morning_evening_adhkar).start()
-    threading.Thread(target=notify_prayer).start()
-    threading.Thread(target=send_friday_reminder).start()
+    threading.Thread(target=send_morning_evening_adhkar, daemon=True).start()
+    threading.Thread(target=notify_prayer, daemon=True).start()
+    threading.Thread(target=send_friday_reminder, daemon=True).start()
+
+# دالة register فارغة لتجنب الخطأ (اختياري)
+def register(bot):
+    pass
