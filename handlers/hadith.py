@@ -2,7 +2,7 @@ import os
 import requests
 import random
 from dotenv import load_dotenv
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from utils.db import add_to_fav
 
 load_dotenv()
@@ -13,7 +13,6 @@ HEADERS = {
     "Accept": "application/json"
 }
 
-# خريطة أسماء الكتب والـ slugs الخاصة بها من API
 BOOKS = {
     "sahih-bukhari": "📘 صحيح البخاري",
     "sahih-muslim": "📗 صحيح مسلم",
@@ -24,20 +23,21 @@ BOOKS = {
     "mishkat": "📔 مشكاة المصابيح"
 }
 
-# قائمة الكتب
 def show_hadith_menu(bot, msg):
-    markup = InlineKeyboardMarkup()
+    markup = InlineKeyboardMarkup(row_width=2)
     for slug, name in BOOKS.items():
         markup.add(InlineKeyboardButton(name, callback_data=f"hadith_book:{slug}"))
     bot.send_message(msg.chat.id, "📚 اختر مصدر الحديث:", reply_markup=markup)
 
 def register(bot):
+    user_sessions = {}  # {chat_id: {'slug': ..., 'hadiths': [...], 'index': int}}
+
     @bot.message_handler(commands=['hadith', 'حديث'])
     def hadith_command(msg):
         show_hadith_menu(bot, msg)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_book:"))
-    def load_random_hadith(call):
+    def select_book(call):
         slug = call.data.split(":")[1]
         try:
             url = f"{API_BASE}/hadiths"
@@ -50,17 +50,83 @@ def register(bot):
             res = requests.get(url, headers=HEADERS, params=params, timeout=10)
             res.raise_for_status()
             data = res.json()
-
             hadiths = data['hadiths']['data']
             if not hadiths:
                 bot.send_message(call.message.chat.id, "❌ لا توجد أحاديث في هذا الكتاب.")
                 return
 
-            index = random.randint(0, len(hadiths) - 1)
-            show_hadith(bot, call.message.chat.id, slug, hadiths, index, call.message.message_id, edit=True)
+            user_sessions[call.message.chat.id] = {'slug': slug, 'hadiths': hadiths, 'index': 0}
+
+            markup = InlineKeyboardMarkup()
+            markup.add(
+                InlineKeyboardButton("📖 حديث عشوائي", callback_data="random_hadith"),
+                InlineKeyboardButton("🔢 حديث برقم", callback_data="get_by_number")
+            )
+            markup.add(
+                InlineKeyboardButton("🔍 بحث بكلمة", callback_data="search_hadith"),
+                InlineKeyboardButton("🏠 العودة للقائمة", callback_data="hadith_back_to_menu")
+            )
+            bot.edit_message_text("🛍 اختر طريقة عرض الحديث:", call.message.chat.id, call.message.message_id, reply_markup=markup)
         except Exception as e:
-            print(f"[ERROR] load_random_hadith: {e}")
-            bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء جلب الحديث.")
+            print(f"[ERROR] load_hadiths: {e}")
+            bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء تحميل الأحاديث.")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "random_hadith")
+    def random_hadith(call):
+        session = user_sessions.get(call.message.chat.id)
+        if not session:
+            return show_hadith_menu(bot, call.message)
+        index = random.randint(0, len(session['hadiths']) - 1)
+        session['index'] = index
+        show_hadith(bot, call.message.chat.id, session['slug'], session['hadiths'], index, call.message.message_id, edit=True)
+
+    @bot.callback_query_handler(func=lambda call: call.data == "get_by_number")
+    def ask_for_number(call):
+        bot.send_message(call.message.chat.id, "📥 أرسل رقم الحديث الذي تريد عرضه:", reply_markup=ForceReply())
+
+    @bot.message_handler(func=lambda msg: msg.reply_to_message and "أرسل رقم الحديث" in msg.reply_to_message.text)
+    def get_by_number(msg):
+        session = user_sessions.get(msg.chat.id)
+        if not session:
+            return show_hadith_menu(bot, msg)
+
+        try:
+            index = int(msg.text) - 1
+            if not (0 <= index < len(session['hadiths'])):
+                bot.send_message(msg.chat.id, "❌ رقم الحديث غير موجود.")
+                return
+            session['index'] = index
+            show_hadith(bot, msg.chat.id, session['slug'], session['hadiths'], index)
+        except ValueError:
+            bot.send_message(msg.chat.id, "❌ الرقم غير صحيح.")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "search_hadith")
+    def ask_for_keyword(call):
+        bot.send_message(call.message.chat.id, "🔍 أرسل الكلمة التي تريد البحث عنها في الأحاديث:", reply_markup=ForceReply())
+
+    @bot.message_handler(func=lambda msg: msg.reply_to_message and "الكلمة التي تريد البحث" in msg.reply_to_message.text)
+    def search_hadith(msg):
+        keyword = msg.text
+        try:
+            url = f"{API_BASE}/hadiths/search"
+            params = {
+                "apiKey": API_KEY,
+                "language": "arabic",
+                "keyword": keyword
+            }
+            res = requests.get(url, headers=HEADERS, params=params, timeout=10)
+            res.raise_for_status()
+            data = res.json()
+            results = data['hadiths']['data']
+            if not results:
+                bot.send_message(msg.chat.id, "❌ لم يتم العثور على أحاديث تحتوي على هذه الكلمة.")
+                return
+            slug = results[0]['book']['bookSlug']
+            user_sessions[msg.chat.id] = {'slug': slug, 'hadiths': results, 'index': 0}
+            show_hadith(bot, msg.chat.id, slug, results, 0)
+        except Exception as e:
+            print(f"[ERROR] search_hadith: {e}")
+            bot.send_message(msg.chat.id, "❌ فشل البحث عن الحديث.")
 
     def show_hadith(bot, chat_id, slug, hadiths, index, message_id=None, edit=False):
         try:
@@ -74,9 +140,9 @@ def register(bot):
 
             nav = []
             if index > 0:
-                nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"nav_hadith:{slug}:{index - 1}"))
+                nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"nav_hadith:{index - 1}"))
             if index < len(hadiths) - 1:
-                nav.append(InlineKeyboardButton("▶️ التالي", callback_data=f"nav_hadith:{slug}:{index + 1}"))
+                nav.append(InlineKeyboardButton("▶️ التالي", callback_data=f"nav_hadith:{index + 1}"))
             if nav:
                 markup.row(*nav)
 
@@ -86,33 +152,18 @@ def register(bot):
                 bot.edit_message_text(message, chat_id, message_id, reply_markup=markup)
             else:
                 bot.send_message(chat_id, message, reply_markup=markup)
-
         except Exception as e:
             print(f"[ERROR] show_hadith: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض الحديث.")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("nav_hadith:"))
-    def navigate_hadith(call):
-        try:
-            _, slug, index = call.data.split(":")
-            index = int(index)
-
-            url = f"{API_BASE}/hadiths"
-            params = {
-                "apiKey": API_KEY,
-                "book": slug,
-                "language": "arabic",
-                "limit": 50
-            }
-            res = requests.get(url, headers=HEADERS, params=params, timeout=10)
-            res.raise_for_status()
-            data = res.json()
-            hadiths = data['hadiths']['data']
-
-            show_hadith(bot, call.message.chat.id, slug, hadiths, index, call.message.message_id, edit=True)
-        except Exception as e:
-            print(f"[ERROR] navigate_hadith: {e}")
-            bot.answer_callback_query(call.id, "❌ تعذر التنقل بين الأحاديث")
+    def navigate(call):
+        index = int(call.data.split(":")[1])
+        session = user_sessions.get(call.message.chat.id)
+        if not session:
+            return show_hadith_menu(bot, call.message)
+        session['index'] = index
+        show_hadith(bot, call.message.chat.id, session['slug'], session['hadiths'], index, call.message.message_id, edit=True)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_hadith:"))
     def add_to_favorites(call):
