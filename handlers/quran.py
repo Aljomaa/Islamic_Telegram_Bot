@@ -1,22 +1,19 @@
-
 import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
+import random
 
 API_BASE = "https://api.quran.gading.dev"
 
 def register(bot):
     @bot.message_handler(commands=['quran'])
-    def show_main_quran_menu_cmd(msg):
-        show_main_quran_menu(bot, msg)
-
-def show_main_quran_menu(bot, msg):
-    markup = InlineKeyboardMarkup()
-    markup.row(
-        InlineKeyboardButton("📖 تصفح السور", callback_data="browse_quran"),
-        InlineKeyboardButton("🕋 آية من القرآن", callback_data="random_ayah")
-    )
-    bot.send_message(msg.chat.id, "📖 اختر ما تود القيام به:", reply_markup=markup)
+    def handle_quran(msg):
+        markup = InlineKeyboardMarkup()
+        markup.row(
+            InlineKeyboardButton("📖 تصفح السور", callback_data="browse_quran"),
+            InlineKeyboardButton("🕋 آية من القرآن", callback_data="random_ayah")
+        )
+        bot.send_message(msg.chat.id, "اختر ما تود فعله:", reply_markup=markup)
 
 def handle_callbacks(bot):
     @bot.callback_query_handler(func=lambda call: call.data == "browse_quran")
@@ -30,7 +27,6 @@ def handle_callbacks(bot):
             res = requests.get(f"{API_BASE}/surah", timeout=10)
             res.raise_for_status()
             surahs = res.json()["data"]
-            import random
             surah = random.choice(surahs)
             surah_num = int(surah["number"])
             total_ayahs = surah["numberOfVerses"]
