@@ -1,8 +1,7 @@
 import telebot
 from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith
-from tasks import reminders
-from utils.db import register_user
+from tasks import reminders  # استيراد reminders
 
 import threading
 from flask import Flask
@@ -12,6 +11,7 @@ bot = telebot.TeleBot(BOT_TOKEN)
 # ✅ تسجيل المستخدم عند /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
+    from utils.db import register_user
     register_user(msg.from_user)
 
     bot.reply_to(msg, """🌙 مرحبًا بك في البوت الإسلامي!
@@ -35,7 +35,9 @@ favorites.register(bot)
 complaints.register(bot)
 admin.register(bot)
 hadith.register(bot)
-reminders.register(bot)
+
+# ✅ بدء مهام التنبيهات في خيوط منفصلة
+reminders.start_reminders()
 
 # ✅ تشغيل البوت في خيط منفصل
 def run_bot():
