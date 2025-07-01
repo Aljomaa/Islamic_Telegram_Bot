@@ -11,12 +11,13 @@ API_KEY = os.getenv("HADITH_API_KEY")
 API_BASE = "https://api.hadithapi.com/api/v1"
 HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
+# أسماء الكتب كما هي في API
 BOOKS = {
-    "bukhari": "📘 صحيح البخاري",
-    "muslim": "📗 صحيح مسلم",
-    "abudawud": "📙 سنن أبي داود",
-    "tirmidhi": "📕 سنن الترمذي",
-    "nasai": "📒 سنن النسائي"
+    "sahih-bukhari": "📘 صحيح البخاري",
+    "sahih-muslim": "📗 صحيح مسلم",
+    "sunan-abu-dawood": "📙 سنن أبي داود",
+    "jami-at-tirmidhi": "📕 سنن الترمذي",
+    "sunan-an-nasai": "📒 سنن النسائي"
 }
 
 def show_hadith_menu(bot, msg):
@@ -35,28 +36,37 @@ def register(bot):
         book_key = call.data.split(":")[1]
         try:
             res = requests.get(f"{API_BASE}/books/{book_key}/hadiths", headers=HEADERS, timeout=10)
-            data = res.json()
-            hadiths = data["data"]["hadiths"]
+            res.raise_for_status()
+            hadiths = res.json().get("data", {}).get("hadiths", [])
+
             if not hadiths:
                 bot.send_message(call.message.chat.id, "❌ لا توجد أحاديث في هذا الكتاب.")
                 return
+
             index = random.randint(0, len(hadiths) - 1)
             show_hadith(bot, call.message.chat.id, book_key, hadiths, index, call.message.message_id, edit=True)
+
         except Exception as e:
             print(f"[ERROR] load_random_hadith: {e}")
             bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء جلب الحديث.")
 
     def show_hadith(bot, chat_id, book_key, hadiths, index, message_id=None, edit=False):
         try:
+            if not hadiths or index < 0 or index >= len(hadiths):
+                bot.send_message(chat_id, "❌ لا يوجد حديث بهذا الرقم.")
+                return
+
             hadith = hadiths[index]
-            number = hadith["hadithNumber"]
-            text = hadith["arabicText"]
+            number = hadith.get("hadithNumber", index + 1)
+            text = hadith.get("arabicText", "❌ لا يوجد نص.")
 
-            message = f"{BOOKS.get(book_key)}\n\n🆔 الحديث رقم {number}\n\n{text}"
-
+            message = f"{BOOKS.get(book_key, '📕 كتاب')} \n\n🆔 الحديث رقم {number}\n\n{text}"
             markup = InlineKeyboardMarkup()
+
+            # مفضلة
             markup.add(InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_hadith:{book_key}:{number}"))
 
+            # تنقل
             nav = []
             if index > 0:
                 nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"nav_hadith:{book_key}:{index - 1}"))
@@ -71,6 +81,7 @@ def register(bot):
                 bot.edit_message_text(message, chat_id, message_id, reply_markup=markup)
             else:
                 bot.send_message(chat_id, message, reply_markup=markup)
+
         except Exception as e:
             print(f"[ERROR] show_hadith: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض الحديث.")
@@ -80,8 +91,8 @@ def register(bot):
         try:
             _, book_key, index = call.data.split(":")
             res = requests.get(f"{API_BASE}/books/{book_key}/hadiths", headers=HEADERS, timeout=10)
-            data = res.json()
-            hadiths = data["data"]["hadiths"]
+            res.raise_for_status()
+            hadiths = res.json().get("data", {}).get("hadiths", [])
             show_hadith(bot, call.message.chat.id, book_key, hadiths, int(index), call.message.message_id, edit=True)
         except Exception as e:
             print(f"[ERROR] navigate_hadith: {e}")
