@@ -78,3 +78,7 @@ def register(bot):
         content = f"آية رقم {ayah_number}\n{snippet}..."
         add_to_fav(call.from_user.id, "ayah", content)
         bot.answer_callback_query(call.id, "✅ تم الحفظ في المفضلة.")
+
+def handle_callbacks(bot):
+    # ضع كل @bot.callback_query_handler هنا بدلًا من داخل register(bot)
+    pass
