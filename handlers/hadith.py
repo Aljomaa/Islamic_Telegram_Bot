@@ -22,7 +22,7 @@ def show_hadith_menu(bot, msg):
 
 # ✅ تسجيل معالجات الأوامر والأزرار
 def register(bot):
-    @bot.message_handler(commands=['hadith'])
+    @bot.message_handler(commands=['hadith', 'حديث'])
     def hadith_command(msg):
         show_hadith_menu(bot, msg)
 
@@ -35,7 +35,6 @@ def register(bot):
             res.raise_for_status()
             data = res.json()
             hadiths = data["hadiths"]
-
             index = random.randint(0, len(hadiths) - 1)
             return send_hadith(bot, call.message.chat.id, book_key, index, call.message.message_id, edit=True)
         except Exception as e:
@@ -61,7 +60,6 @@ def register(bot):
 
             markup = InlineKeyboardMarkup()
             markup.add(
-                InlineKeyboardButton("🔁 حديث آخر", callback_data=f"hadith_book:{book_key}"),
                 InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_hadith:{book_key}:{number}")
             )
 
@@ -72,6 +70,8 @@ def register(bot):
                 nav_buttons.append(InlineKeyboardButton("▶️ التالي", callback_data=f"nav_hadith:{book_key}:{index+1}"))
             if nav_buttons:
                 markup.row(*nav_buttons)
+
+            markup.add(InlineKeyboardButton("🏠 العودة للقائمة", callback_data="hadith_back_to_menu"))
 
             if edit and message_id:
                 bot.edit_message_text(full_text, chat_id, message_id, reply_markup=markup)
@@ -100,3 +100,11 @@ def register(bot):
         except Exception as e:
             print(f"[ERROR] Add hadith to favorites: {e}")
             bot.answer_callback_query(call.id, "❌ فشل الحفظ.")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "hadith_back_to_menu")
+    def back_to_main_menu(call):
+        try:
+            show_hadith_menu(bot, call.message)
+        except Exception as e:
+            print(f"[ERROR] Back to menu: {e}")
+            bot.answer_callback_query(call.id, "❌ تعذر العودة للقائمة")
