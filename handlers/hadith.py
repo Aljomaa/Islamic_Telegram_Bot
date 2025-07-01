@@ -20,7 +20,6 @@ def show_hadith_menu(bot, msg):
         markup.add(InlineKeyboardButton(name, callback_data=f"hadith_book:{key}"))
     bot.send_message(msg.chat.id, "📚 اختر مصدر الحديث:", reply_markup=markup)
 
-# ✅ تسجيل معالجات الأوامر والأزرار
 def register(bot):
     @bot.message_handler(commands=['hadith', 'حديث'])
     def hadith_command(msg):
@@ -29,34 +28,44 @@ def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_book:"))
     def send_random_hadith(call):
         book_key = call.data.split(":")[1]
+        url = f"{API_URL}/{book_key}.json"
         try:
-            url = f"{API_URL}/{book_key}.json"
             res = requests.get(url, timeout=10)
-            res.raise_for_status()
+            if res.status_code != 200:
+                bot.send_message(call.message.chat.id, f"❌ فشل الاتصال ({res.status_code})")
+                return
+
             data = res.json()
-            hadiths = data["hadiths"]
+            hadiths = data.get("hadiths")
+            if not hadiths:
+                bot.send_message(call.message.chat.id, "❌ لا توجد أحاديث متوفرة في هذا المصدر.")
+                return
+
             index = random.randint(0, len(hadiths) - 1)
-            return send_hadith(bot, call.message.chat.id, book_key, index, call.message.message_id, edit=True)
+            send_hadith(bot, call.message.chat.id, book_key, index, call.message.message_id, edit=True)
         except Exception as e:
             print(f"[ERROR] Hadith fetch: {e}")
             bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء جلب الحديث.")
 
     def send_hadith(bot, chat_id, book_key, index, message_id=None, edit=False):
+        url = f"{API_URL}/{book_key}.json"
         try:
-            url = f"{API_URL}/{book_key}.json"
             res = requests.get(url, timeout=10)
-            res.raise_for_status()
-            data = res.json()
-            hadiths = data["hadiths"]
+            if res.status_code != 200:
+                bot.send_message(chat_id, f"❌ فشل تحميل المصدر ({res.status_code})")
+                return
 
-            if not (0 <= index < len(hadiths)):
-                return bot.send_message(chat_id, "❌ لا يوجد حديث بهذا الرقم")
+            data = res.json()
+            hadiths = data.get("hadiths")
+            if not hadiths or not (0 <= index < len(hadiths)):
+                bot.send_message(chat_id, "❌ لا يوجد حديث بهذا الرقم")
+                return
 
             hadith = hadiths[index]
             number = hadith.get("hadithNumber", index + 1)
-            text = hadith.get("arab", "❌ لا يوجد نص")
+            text = hadith.get("arab", "❌ لا يوجد نص لهذا الحديث")
 
-            full_text = f"{BOOKS.get(book_key)}\n\n🆔 الحديث رقم {number}\n\n{text}"
+            message = f"{BOOKS.get(book_key)}\n\n🆔 الحديث رقم {number}\n\n{text}"
 
             markup = InlineKeyboardMarkup()
             markup.add(
@@ -65,18 +74,18 @@ def register(bot):
 
             nav_buttons = []
             if index > 0:
-                nav_buttons.append(InlineKeyboardButton("◀️ السابق", callback_data=f"nav_hadith:{book_key}:{index-1}"))
+                nav_buttons.append(InlineKeyboardButton("◀️ السابق", callback_data=f"nav_hadith:{book_key}:{index - 1}"))
             if index < len(hadiths) - 1:
-                nav_buttons.append(InlineKeyboardButton("▶️ التالي", callback_data=f"nav_hadith:{book_key}:{index+1}"))
+                nav_buttons.append(InlineKeyboardButton("▶️ التالي", callback_data=f"nav_hadith:{book_key}:{index + 1}"))
             if nav_buttons:
                 markup.row(*nav_buttons)
 
             markup.add(InlineKeyboardButton("🏠 العودة للقائمة", callback_data="hadith_back_to_menu"))
 
             if edit and message_id:
-                bot.edit_message_text(full_text, chat_id, message_id, reply_markup=markup)
+                bot.edit_message_text(message, chat_id, message_id, reply_markup=markup)
             else:
-                bot.send_message(chat_id, full_text, reply_markup=markup)
+                bot.send_message(chat_id, message, reply_markup=markup)
         except Exception as e:
             print(f"[ERROR] Display hadith: {e}")
             bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض الحديث.")
