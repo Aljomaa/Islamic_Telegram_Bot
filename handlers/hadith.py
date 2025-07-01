@@ -26,7 +26,7 @@ def register(bot):
     def fetch_hadith(msg, book):
         try:
             number = int(msg.text.strip())
-        except:
+        except ValueError:
             bot.send_message(msg.chat.id, "❌ رقم الحديث غير صحيح.")
             return
 
