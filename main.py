@@ -29,7 +29,8 @@ def welcome(msg):
         InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin")
     )
 
-    bot.send_message(msg.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", reply_markup=markup)
+    bot.send_message(msg.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!
+اختر أحد الخيارات:", reply_markup=markup)
 
 # التعامل مع أزرار القائمة الرئيسية
 @bot.callback_query_handler(func=lambda call: call.data.startswith("menu:"))
@@ -56,6 +57,7 @@ def handle_main_menu(call):
 # تسجيل جميع الوظائف الأخرى
 prayers.register(bot)
 quran.register(bot)
+quran.handle_callbacks(bot)
 athkar.register(bot)
 favorites.register(bot)
 complaints.register(bot)
