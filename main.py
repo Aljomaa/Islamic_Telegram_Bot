@@ -11,7 +11,7 @@ from utils.db import register_user
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # بدء تشغيل التذكيرات
-reminders.start_reminders(bot)
+reminders.start_reminders()
 
 # رسالة الترحيب وزر القائمة الرئيسية
 @bot.message_handler(commands=['start'])
@@ -34,6 +34,8 @@ def welcome(msg):
 # معالجة أزرار القائمة الرئيسية
 @bot.callback_query_handler(func=lambda call: call.data.startswith("menu:"))
 def handle_main_menu(call):
+    bot.answer_callback_query(call.id)  # ✅ هذا السطر هو الحل لمشكلة الأزرار
+
     action = call.data.split(":")[1]
 
     if action == "prayer":
