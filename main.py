@@ -40,22 +40,30 @@ def handle_main_menu(call):
     if action == "prayer":
         from handlers.prayers import show_prayer_times
         show_prayer_times(bot, call.message)
+
     elif action == "quran":
-        bot.send_message(call.message.chat.id, "/quran")
+        from handlers.quran import show_main_quran_menu
+        show_main_quran_menu(call.message)
+
     elif action == "athkar":
         bot.send_message(call.message.chat.id, "/athkar")
+
     elif action == "hadith":
         bot.send_message(call.message.chat.id, "/hadith")
+
     elif action == "fav":
         bot.send_message(call.message.chat.id, "/fav")
+
     elif action == "complain":
         bot.send_message(call.message.chat.id, "/complain")
+
     elif action == "admin":
         bot.send_message(call.message.chat.id, "/admin")
 
 # تسجيل جميع الوظائف الأخرى
 prayers.register(bot)
 quran.register(bot)
+quran.handle_callbacks(bot)
 athkar.register(bot)
 favorites.register(bot)
 complaints.register(bot)
