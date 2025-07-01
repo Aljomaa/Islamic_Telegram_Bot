@@ -12,14 +12,16 @@ athkar_data = {}
 athkar_categories = []
 
 def register(bot):
-    # تحميل الأذكار مرة واحدة عند بدء البوت
     global athkar_data, athkar_categories
     try:
         response = requests.get(ATHKAR_API_URL, timeout=10)
-        athkar_data = response.json()
+        response.raise_for_status()
+        athkar_data = response.json().get("data", {})
         athkar_categories = list(athkar_data.keys())
     except Exception as e:
         logger.error(f"❌ فشل تحميل الأذكار عند التشغيل: {e}")
+        athkar_data = {}
+        athkar_categories = []
 
     @bot.message_handler(commands=['athkar', 'أذكار'])
     def show_athkar_menu(msg):
@@ -51,12 +53,12 @@ def register(bot):
             add_to_fav(call.from_user.id, "athkar", content)
             bot.answer_callback_query(call.id, "✅ تم حفظ الذكر في المفضلة.")
         except Exception as e:
-            logger.error(f"Error adding to fav: {e}")
+            logger.error(f"[ERROR] إضافة للمفضلة: {e}")
             bot.answer_callback_query(call.id, "❌ تعذر حفظ الذكر.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "athkar_main")
     def return_to_main_menu(call):
-        bot.send_message(call.message.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:\n/start")
+        bot.send_message(call.message.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!\nاكتب /start للعودة للقائمة الرئيسية.")
 
 def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=False):
     try:
@@ -89,5 +91,5 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
             bot.send_message(chat_id, text, reply_markup=markup)
 
     except Exception as e:
-        logger.error(f"Error sending athkar: {e}")
+        logger.error(f"[ERROR] عرض الذكر: {e}")
         bot.send_message(chat_id, "❌ حدث خطأ أثناء عرض الذكر.")
