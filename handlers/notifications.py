@@ -11,10 +11,14 @@ def register(bot):
 
     @bot.message_handler(content_types=['location'])
     def save_location(msg):
+        if not msg.location:
+            bot.send_message(msg.chat.id, "❌ لم يتم استلام موقعك. يرجى المحاولة مجددًا.")
+            return
+
         lat = msg.location.latitude
         lon = msg.location.longitude
 
-        # نستخدم auto مبدئياً، أو يمكن لاحقاً تحديد timezone بدقة
+        # حفظ الموقع مع وضع 'auto' كوقت مبدئي
         set_user_location(msg.from_user.id, lat, lon, timezone="auto")
 
         bot.send_message(msg.chat.id, "✅ تم حفظ موقعك وتفعيل التنبيهات اليومية بإذن الله.")
