@@ -1,4 +1,3 @@
-
 import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import get_user_reciter, set_user_reciter, add_to_fav
@@ -36,9 +35,7 @@ def register(bot):
         text = ayah["text"]["arab"]
         audio_url = ayah["audio"]["primary"]
 
-        msg_text = f"📖 {surah_name} - {ayah['number']['inSurah']}"
-
-{text}"
+        msg_text = f"📖 {surah_name} - {ayah['number']['inSurah']}\n\n{text}"
 
         markup = InlineKeyboardMarkup()
         markup.row(
@@ -52,7 +49,7 @@ def register(bot):
         bot.send_message(chat_id, msg_text, reply_markup=markup)
         bot.send_audio(chat_id, audio_url)
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith(("prev:", "next:")) )
+    @bot.callback_query_handler(func=lambda call: call.data.startswith(("prev:", "next:")))
     def navigate_ayah(call):
         parts = call.data.split(":")
         direction, surah, ayah = parts[0], int(parts[1]), int(parts[2])
@@ -64,7 +61,6 @@ def register(bot):
         parts = call.data.split(":", 2)
         ayah_number = parts[1]
         snippet = parts[2]
-        content = f"آية رقم {ayah_number}
-{snippet}..."
+        content = f"آية رقم {ayah_number}\n{snippet}..."
         add_to_fav(call.from_user.id, "ayah", content)
         bot.answer_callback_query(call.id, "✅ تم الحفظ في المفضلة.")
