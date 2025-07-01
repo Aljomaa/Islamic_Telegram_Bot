@@ -4,7 +4,7 @@ from utils.db import (
     get_bot_stats,
     get_complaints,
     reply_to_complaint,
-    get_all_users,
+    get_all_user_ids,  # ✅ بدل get_all_users
 )
 
 def register(bot):
@@ -88,8 +88,8 @@ def register(bot):
 # 📨 دالة الإرسال الجماعي هنا
 # ================================
 def broadcast_message(bot, message_text):
-    for user in get_all_users():
+    for user_id in get_all_user_ids():
         try:
-            bot.send_message(user["_id"], message_text)
+            bot.send_message(user_id, message_text)
         except:
             continue
