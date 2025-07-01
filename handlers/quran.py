@@ -71,3 +71,11 @@ def send_ayah(bot, chat_id, surah_num, ayah_num, message=None, edit=False):
     else:
         bot.send_message(chat_id, msg_text, reply_markup=markup)
         bot.send_audio(chat_id, audio_url)
+
+def show_main_quran_menu(bot, message):
+    markup = InlineKeyboardMarkup()
+    markup.row(
+        InlineKeyboardButton("📖 تصفح السور", callback_data="browse_quran"),
+        InlineKeyboardButton("🕋 آية من القرآن", callback_data="random_ayah")
+    )
+    bot.send_message(message.chat.id, "اختر ما تود فعله:", reply_markup=markup)
