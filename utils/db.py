@@ -13,8 +13,15 @@ comp_col = db["complaints"]
 def register_user(user):
     user_id = user.id if hasattr(user, 'id') else user
     if not user_col.find_one({"_id": user_id}):
-        user_col.insert_one({"_id": user_id})
-
+        user_col.insert_one({
+            "_id": user_id,
+            "reminder_settings": {
+                "morning_adhkar": True,
+                "evening_adhkar": True,
+                "jumuah": True,
+                "prayer": True
+            }
+        })
 
 # ===============================
 # 🕌 الموقع والتوقيت
@@ -41,9 +48,8 @@ def get_user_timezone(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("timezone", "auto") if user else "auto"
 
-
 # ===============================
-# 🔔 الإشعارات
+# 🔔 الإشعارات العامة
 # ===============================
 def user_notifications_enabled(user_id):
     user = user_col.find_one({"_id": user_id})
@@ -55,6 +61,24 @@ def enable_notifications(user_id):
 def disable_notifications(user_id):
     user_col.update_one({"_id": user_id}, {"$set": {"notifications_enabled": False}})
 
+# ===============================
+# 🔁 إعدادات التذكير المخصصة
+# ===============================
+def get_user_reminder_settings(user_id):
+    user = user_col.find_one({"_id": user_id})
+    return user.get("reminder_settings", {
+        "morning_adhkar": True,
+        "evening_adhkar": True,
+        "jumuah": True,
+        "prayer": True
+    })
+
+def update_reminder_setting(user_id, key, value: bool):
+    user_col.update_one(
+        {"_id": user_id},
+        {"$set": {f"reminder_settings.{key}": value}},
+        upsert=True
+    )
 
 # ===============================
 # ⭐ نظام المفضلة
@@ -70,7 +94,6 @@ def get_user_favs(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("favorites", []) if user else []
 
-
 # ===============================
 # 🎧 القارئ المفضل
 # ===============================
@@ -84,7 +107,6 @@ def set_user_reciter(user_id, reciter):
         {"$set": {"reciter": reciter}},
         upsert=True
     )
-
 
 # ===============================
 # 🧾 الشكاوى والاقتراحات
@@ -108,7 +130,6 @@ def reply_to_complaint(comp_id, reply_text, bot=None):
     except:
         return False
 
-
 # ===============================
 # 📊 الإحصائيات
 # ===============================
@@ -124,7 +145,6 @@ def get_bot_stats():
         "total_favorites": total_favorites,
         "total_complaints": comp_col.count_documents({})
     }
-
 
 # ===============================
 # 📢 الرسائل الجماعية
