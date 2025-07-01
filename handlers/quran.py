@@ -46,7 +46,7 @@ def handle_callbacks(bot):
 
 def send_ayah(bot, chat_id, surah_num, ayah_num, message=None, edit=False):
     try:
-        res = requests.get(f"{API_BASE}/surah/{surah_num}/{ayah_num}", timeout=10)
+        res = requests.get(f"{API_BASE}/surah/{surah_num}/{ayah_num}", timeout=50)
         data = res.json()
         if data["status"] != "OK":
             raise Exception("Bad response")
