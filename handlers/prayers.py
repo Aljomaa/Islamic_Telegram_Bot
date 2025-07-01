@@ -1,8 +1,6 @@
 import requests
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton
 from utils.db import set_user_location, get_user_location
-from datetime import datetime
-import pytz
 
 def register(bot):
     @bot.message_handler(commands=['prayer'])
@@ -17,27 +15,35 @@ def register(bot):
         lat = msg.location.latitude
         lon = msg.location.longitude
         set_user_location(msg.from_user.id, lat, lon)
+        show_prayer_times(bot, msg)
 
-        try:
-            res = requests.get(f"http://api.aladhan.com/v1/timings?latitude={lat}&longitude={lon}&method=4")
-            data = res.json()
+# ✅ هذه الدالة مطلوبة لكي يعمل الزر من القائمة الرئيسية
+def show_prayer_times(bot, message):
+    lat, lon = get_user_location(message.chat.id)
+    if not lat or not lon:
+        bot.send_message(message.chat.id, "❗ الرجاء استخدام الأمر /prayer ومشاركة موقعك أولًا.")
+        return
 
-            if data["code"] != 200:
-                raise Exception("خطأ في API")
+    try:
+        res = requests.get(f"http://api.aladhan.com/v1/timings?latitude={lat}&longitude={lon}&method=4")
+        data = res.json()
 
-            times = data["data"]["timings"]
-            date = data["data"]["date"]["readable"]
+        if data["code"] != 200:
+            raise Exception("خطأ في API")
 
-            text = f"🕌 أوقات الصلاة لليوم ({date}):\n\n"
-            text += f"الفجر: {times['Fajr']}\n"
-            text += f"الشروق: {times['Sunrise']}\n"
-            text += f"الظهر: {times['Dhuhr']}\n"
-            text += f"العصر: {times['Asr']}\n"
-            text += f"المغرب: {times['Maghrib']}\n"
-            text += f"العشاء: {times['Isha']}\n"
+        times = data["data"]["timings"]
+        date = data["data"]["date"]["readable"]
 
-            bot.send_message(msg.chat.id, text)
+        text = f"🕌 أوقات الصلاة لليوم ({date}):\n\n"
+        text += f"الفجر: {times['Fajr']}\n"
+        text += f"الشروق: {times['Sunrise']}\n"
+        text += f"الظهر: {times['Dhuhr']}\n"
+        text += f"العصر: {times['Asr']}\n"
+        text += f"المغرب: {times['Maghrib']}\n"
+        text += f"العشاء: {times['Isha']}\n"
 
-        except Exception as e:
-            print(f"[ERROR] Prayer API: {e}")
-            bot.send_message(msg.chat.id, "❌ حدث خطأ أثناء جلب أوقات الصلاة.")
+        bot.send_message(message.chat.id, text)
+
+    except Exception as e:
+        print(f"[ERROR] Prayer API: {e}")
+        bot.send_message(message.chat.id, "❌ حدث خطأ أثناء جلب أوقات الصلاة.")
