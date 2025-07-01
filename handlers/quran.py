@@ -3,6 +3,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import get_user_reciter, set_user_reciter, add_to_fav
 
 def register(bot):
+
     @bot.message_handler(commands=['ayah'])
     def ayah_menu(msg):
         markup = InlineKeyboardMarkup()
@@ -21,55 +22,46 @@ def register(bot):
 
     def send_random_ayah(message):
         try:
-            res = requests.get("https://api.quran.com/v4/verses/random?language=ar&words=false", timeout=10)
+            res = requests.get("https://api.alquran.cloud/v1/ayah/random/ar", timeout=10)
             res.raise_for_status()
-            data = res.json()["verse"]
-        except Exception:
-            bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية، يرجى المحاولة لاحقاً.")
-            return
+            data = res.json()
+            if data["status"] != "OK":
+                bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية.")
+                return
 
-        ayah_text = data.get("text_uthmani", "❌ نص الآية غير متوفر.")
-        ayah_number = data.get("verse_key", "")
-        surah_id = data.get("chapter_id", None) or data.get("surah_id", None)
+            ayah_data = data["data"]
+            ayah_text = ayah_data["text"]
+            surah_name = ayah_data["surah"]["englishName"]
+            ayah_number = f"{ayah_data['surah']['number']}:{ayah_data['numberInSurah']}"
 
-        if not ayah_number or not surah_id:
-            bot.send_message(message.chat.id, "❌ فشل في جلب بيانات الآية.")
-            return
+            text = f"📖 {surah_name} - {ayah_number}\n\n{ayah_text}"
 
-        try:
-            surah_res = requests.get(f"https://api.quran.com/v4/chapters/{surah_id}?language=ar", timeout=10)
-            surah_res.raise_for_status()
-            surah_name = surah_res.json()["chapter"]["name_arabic"]
-        except:
-            surah_name = "سورة غير معروفة"
+            # تحضير صوت الآية
+            reciter = get_user_reciter(message.from_user.id) or "yasser"
+            reciters = {
+                "yasser": "Yasser_Ad-Dussary_64kbps",
+                "mishary": "Mishari_Alafasy_64kbps",
+                "basit": "Abdul_Basit_Mujawwad_64kbps",
+                "massad": "Abdurrahmaan_As-Sudais_64kbps"
+            }
+            reciter_code = reciters.get(reciter, reciters["yasser"])
+            audio_url = f"https://verses.quran.com/{reciter_code}/{ayah_data['surah']['number']}_{ayah_data['numberInSurah']}.mp3"
 
-        reciter = get_user_reciter(message.from_user.id) or "yasser"
-        reciters = {
-            "yasser": "Yasser_Ad-Dussary_64kbps",
-            "mishary": "Mishari_Alafasy_64kbps",
-            "basit": "Abdul_Basit_Mujawwad_64kbps",
-            "massad": "Abdurrahmaan_As-Sudais_64kbps"
-        }
-        reciter_code = reciters.get(reciter, reciters["yasser"])
-        audio_url = f"https://verses.quran.com/{reciter_code}/{ayah_number.replace(':', '_')}.mp3"
+            markup = InlineKeyboardMarkup()
+            markup.row(
+                InlineKeyboardButton("📖 تفسير الآية", callback_data=f"tafsir:{ayah_number}"),
+                InlineKeyboardButton("🎙️ اختيار القارئ", callback_data="choose_reciter")
+            )
+            markup.row(
+                InlineKeyboardButton("🔁 آية أخرى", callback_data="random_ayah"),
+                InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_text[:40]}")
+            )
 
-        text = f"📖 {surah_name} - {ayah_number}\n\n{ayah_text}"
-
-        markup = InlineKeyboardMarkup()
-        markup.row(
-            InlineKeyboardButton("📖 تفسير الآية", callback_data=f"tafsir:{ayah_number}"),
-            InlineKeyboardButton("🎙️ اختيار القارئ", callback_data="choose_reciter")
-        )
-        markup.row(
-            InlineKeyboardButton("🔁 آية أخرى", callback_data="random_ayah"),
-            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_text[:40]}")
-        )
-
-        bot.send_message(message.chat.id, text, reply_markup=markup)
-        try:
+            bot.send_message(message.chat.id, text, reply_markup=markup)
             bot.send_audio(message.chat.id, audio_url)
-        except:
-            bot.send_message(message.chat.id, "⚠️ تعذر تشغيل الصوت. استمتع بقراءة الآية.")
+
+        except Exception:
+            bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية. حاول لاحقاً.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "choose_reciter")
     def choose_reciter(call):
@@ -99,7 +91,6 @@ def register(bot):
             tafsir_text = tafsir_data.get("text") or "❌ لا يوجد تفسير."
         except:
             tafsir_text = "❌ تعذر جلب التفسير حالياً."
-
         bot.send_message(call.message.chat.id, f"📖 تفسير الآية {ayah_key}:\n\n{tafsir_text}")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_ayah:"))
@@ -108,7 +99,6 @@ def register(bot):
         add_to_fav(call.from_user.id, "ayah", content)
         bot.answer_callback_query(call.id, "✅ تم حفظ الآية في المفضلة.")
 
-    # تصفح القرآن
     def ask_surah(msg):
         bot.send_message(msg.chat.id, "📖 اكتب رقم السورة (1 إلى 114):")
         bot.register_next_step_handler(msg, browse_surah)
@@ -165,7 +155,4 @@ def register(bot):
         )
 
         bot.send_message(chat_id, text, reply_markup=markup)
-        try:
-            bot.send_audio(chat_id, audio_url)
-        except:
-            bot.send_message(chat_id, "⚠️ تعذر تشغيل الصوت. استمتع بقراءة الآية.")
+        bot.send_audio(chat_id, audio_url)
