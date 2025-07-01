@@ -11,7 +11,7 @@ from utils.db import register_user
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # بدء تشغيل التذكيرات
-reminders.start_reminders()
+reminders.start_reminders(bot)
 
 # رسالة الترحيب وزر القائمة الرئيسية
 @bot.message_handler(commands=['start'])
