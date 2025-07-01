@@ -84,7 +84,7 @@ def register(bot):
 
             markup = InlineKeyboardMarkup()
             markup.row(
-                InlineKeyboardButton("🔢 التالية", callback_data=f"select_ayah:{surah_num++}"),
+                InlineKeyboardButton("🔢 التالية", callback_data=f"select_ayah:{surah_num+1}"),
                 InlineKeyboardButton("🎧 استماع", callback_data=f"listen:{surah_num}:1")
             )
             markup.row(
