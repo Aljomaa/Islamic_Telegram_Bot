@@ -36,7 +36,7 @@ def register(bot):
         text = ayah["text"]["arab"]
         audio_url = ayah["audio"]["primary"]
 
-        msg_text = f"📖 {surah_name} - {ayah['number']['inSurah']}
+        msg_text = f"📖 {surah_name} - {ayah['number']['inSurah']}"
 
 {text}"
 
