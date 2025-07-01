@@ -7,26 +7,29 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# مصدر الأذكار من Hisnul Muslim API
 ATHKAR_API_URL = "https://raw.githubusercontent.com/fawazahmed0/athkar-api/main/athkar.json"
 
+# 📿 القائمة الرئيسية للأذكار
+def show_athkar_menu(bot, message):
+    try:
+        response = requests.get(ATHKAR_API_URL, timeout=10)
+        data = response.json()
+        categories = list(data.keys())
+
+        markup = InlineKeyboardMarkup(row_width=2)
+        for cat in categories:
+            markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar:{cat}"))
+
+        bot.send_message(message.chat.id, "📿 اختر نوع الذكر الذي تريده:", reply_markup=markup)
+    except Exception as e:
+        logger.error(f"Error loading athkar: {e}")
+        bot.send_message(message.chat.id, "❌ حدث خطأ أثناء تحميل الأذكار. حاول لاحقاً.")
+
+# ✅ تسجيل المعالجات
 def register(bot):
     @bot.message_handler(commands=['athkar', 'أذكار'])
-    def show_athkar_menu(msg):
-        try:
-            response = requests.get(ATHKAR_API_URL, timeout=10)
-            data = response.json()
-
-            categories = list(data.keys())
-
-            markup = InlineKeyboardMarkup(row_width=2)
-            for cat in categories:
-                markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar:{cat}"))
-
-            bot.send_message(msg.chat.id, "📿 اختر نوع الذكر الذي تريده:", reply_markup=markup)
-        except Exception as e:
-            logger.error(f"Error loading athkar: {e}")
-            bot.send_message(msg.chat.id, "❌ حدث خطأ أثناء تحميل الأذكار. حاول لاحقاً.")
+    def handle_athkar_cmd(msg):
+        show_athkar_menu(bot, msg)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("athkar:"))
     def show_athkar_list(call):
@@ -59,7 +62,7 @@ def register(bot):
 
     @bot.callback_query_handler(func=lambda call: call.data == "athkar_menu")
     def return_to_menu(call):
-        show_athkar_menu(call.message)
+        show_athkar_menu(bot, call.message)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_athkar:"))
     def add_to_favorites(call):
