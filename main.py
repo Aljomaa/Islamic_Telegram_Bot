@@ -41,8 +41,7 @@ def handle_main_menu(call):
         from handlers.prayers import show_prayer_times
         show_prayer_times(bot, call.message)
     elif action == "quran":
-        from handlers.quran import show_main_quran_menu
-        show_main_quran_menu(bot, call.message)
+        bot.send_message(call.message.chat.id, "/quran")
     elif action == "athkar":
         bot.send_message(call.message.chat.id, "/athkar")
     elif action == "hadith":
@@ -57,7 +56,6 @@ def handle_main_menu(call):
 # تسجيل جميع الوظائف الأخرى
 prayers.register(bot)
 quran.register(bot)
-quran.handle_callbacks(bot)
 athkar.register(bot)
 favorites.register(bot)
 complaints.register(bot)
