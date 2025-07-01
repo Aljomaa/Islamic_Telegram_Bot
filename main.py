@@ -10,10 +10,10 @@ from utils.db import register_user
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# بدء التذكيرات
-reminders.start_reminders()
+# بدء تشغيل التذكيرات
+reminders.start_reminders(bot)
 
-# استقبال /start
+# رسالة الترحيب وزر القائمة الرئيسية
 @bot.message_handler(commands=['start'])
 def welcome(msg):
     register_user(msg.from_user.id)
@@ -29,10 +29,9 @@ def welcome(msg):
         InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin")
     )
 
-    bot.send_message(msg.chat.id, """🌙 مرحبًا بك في البوت الإسلامي!
-اختر أحد الخيارات:""", reply_markup=markup)
+    bot.send_message(msg.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", reply_markup=markup)
 
-# التعامل مع أزرار القائمة الرئيسية
+# معالجة أزرار القائمة الرئيسية
 @bot.callback_query_handler(func=lambda call: call.data.startswith("menu:"))
 def handle_main_menu(call):
     action = call.data.split(":")[1]
@@ -43,13 +42,15 @@ def handle_main_menu(call):
 
     elif action == "quran":
         from handlers.quran import show_main_quran_menu
-        show_main_quran_menu(call.message)
+        show_main_quran_menu(bot, call.message)
 
     elif action == "athkar":
-        bot.send_message(call.message.chat.id, "/athkar")
+        from handlers.athkar import show_athkar_menu
+        show_athkar_menu(bot, call.message)
 
     elif action == "hadith":
-        bot.send_message(call.message.chat.id, "/hadith")
+        from handlers.hadith import show_hadith_menu
+        show_hadith_menu(bot, call.message)
 
     elif action == "fav":
         bot.send_message(call.message.chat.id, "/fav")
@@ -60,7 +61,7 @@ def handle_main_menu(call):
     elif action == "admin":
         bot.send_message(call.message.chat.id, "/admin")
 
-# تسجيل جميع الوظائف الأخرى
+# تسجيل باقي الأوامر
 prayers.register(bot)
 quran.register(bot)
 quran.handle_callbacks(bot)
@@ -70,11 +71,10 @@ complaints.register(bot)
 admin.register(bot)
 hadith.register(bot)
 
-# تشغيل البوت في خيط منفصل
+# إعداد وتشغيل البوت مع خادم Flask
 def run_bot():
     bot.infinity_polling()
 
-# إعداد خادم Flask لـ Render أو استضافة خارجية
 app = Flask(__name__)
 
 @app.route('/')
