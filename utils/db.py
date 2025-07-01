@@ -1,6 +1,5 @@
 from pymongo import MongoClient
 from config import MONGO_URI
-from datetime import datetime
 
 client = MongoClient(MONGO_URI)
 db = client["islamic_bot"]
@@ -10,7 +9,7 @@ user_col = db["users"]        # بيانات المستخدمين
 comp_col = db["complaints"]   # الشكاوى والاقتراحات
 
 # ===============================
-# 📍 إعداد الموقع والإشعارات
+# 📍 الموقع والتوقيت والإشعارات
 # ===============================
 
 def set_user_location(user_id, lat, lon, timezone="auto"):
@@ -76,40 +75,52 @@ def set_user_reciter(user_id, reciter):
     )
 
 # ===============================
-# 👤 تسجيل المستخدم
+# 🧾 الشكاوى والاقتراحات
 # ===============================
 
-def register_user(user):
-    user_col.update_one(
-        {"_id": user.id},
-        {
-            "$setOnInsert": {
-                "name": f"{user.first_name} {user.last_name or ''}".strip(),
-                "username": user.username,
-                "joined_at": datetime.utcnow(),
-                "favorites": [],
-                "notifications_enabled": False,
-            },
-            "$set": {
-                "last_seen": datetime.utcnow()
-            }
-        },
-        upsert=True
+def save_complaint(user_id, complaint):
+    comp_col.insert_one({
+        "user_id": user_id,
+        "message": complaint,
+        "replies": []
+    })
+
+def get_complaints():
+    return list(comp_col.find())
+
+def reply_to_complaint(complaint_id, reply):
+    comp_col.update_one(
+        {"_id": complaint_id},
+        {"$push": {"replies": reply}}
     )
 
 # ===============================
-# 📊 إحصائيات البوت
+# 📊 الإحصائيات
 # ===============================
+
+def register_user(user_id):
+    user_col.update_one(
+        {"_id": user_id},
+        {"$setOnInsert": {"favorites": []}},
+        upsert=True
+    )
 
 def get_bot_stats():
     total_users = user_col.count_documents({})
-    with_notif = user_col.count_documents({"notifications_enabled": True})
-    with_location = user_col.count_documents({"location": {"$exists": True}})
     total_complaints = comp_col.count_documents({})
+    return total_users, total_complaints
 
-    return {
-        "total_users": total_users,
-        "with_notif": with_notif,
-        "with_location": with_location,
-        "total_complaints": total_complaints
-    }
+# ===============================
+# 📢 الرسائل الجماعية (Broadcast)
+# ===============================
+
+def get_all_user_ids():
+    return [u["_id"] for u in user_col.find({}, {"_id": 1})]
+
+def broadcast_message(bot, text):
+    user_ids = get_all_user_ids()
+    for uid in user_ids:
+        try:
+            bot.send_message(uid, text)
+        except:
+            continue
