@@ -20,18 +20,28 @@ def register(bot):
             ask_surah(call.message)
 
     def send_random_ayah(message):
-        res = requests.get("https://api.quran.com/v4/verses/random?language=ar&words=false")
-        if res.status_code != 200:
+        try:
+            res = requests.get("https://api.quran.com/v4/verses/random?language=ar&words=false", timeout=10)
+            res.raise_for_status()
+            data = res.json()["verse"]
+        except Exception as e:
             bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية.")
             return
 
-        data = res.json()["verse"]
-        ayah_text = data["text_uthmani"]
-        ayah_number = data["verse_key"]
-        surah_id = data["surah_id"]
+        ayah_text = data.get("text_uthmani", "❌ نص الآية غير متوفر.")
+        ayah_number = data.get("verse_key", "")
+        surah_id = data.get("chapter_id", None) or data.get("surah_id", None)
 
-        surah_res = requests.get(f"https://api.quran.com/v4/chapters/{surah_id}?language=ar").json()
-        surah_name = surah_res["chapter"]["name_arabic"]
+        if not ayah_number or not surah_id:
+            bot.send_message(message.chat.id, "❌ فشل في جلب بيانات الآية.")
+            return
+
+        try:
+            surah_res = requests.get(f"https://api.quran.com/v4/chapters/{surah_id}?language=ar", timeout=10)
+            surah_res.raise_for_status()
+            surah_name = surah_res.json()["chapter"]["name_arabic"]
+        except:
+            surah_name = "سورة غير معروفة"
 
         reciter = get_user_reciter(message.from_user.id) or "yasser"
         reciters = {
@@ -52,7 +62,7 @@ def register(bot):
         )
         markup.row(
             InlineKeyboardButton("🔁 آية أخرى", callback_data="random_ayah"),
-            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_text[:40]}")
+            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_number}")
         )
 
         bot.send_message(message.chat.id, text, reply_markup=markup)
@@ -79,20 +89,23 @@ def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("tafsir:"))
     def tafsir(call):
         ayah_key = call.data.split(":")[1]
-        tafsir_res = requests.get(f"https://api.quran.com/v4/tafsirs/131/verse/{ayah_key}")
-        if tafsir_res.status_code == 200:
-            tafsir_text = tafsir_res.json().get("text", "❌ لا يوجد تفسير.")
-        else:
+        try:
+            tafsir_res = requests.get(f"https://api.quran.com/v4/tafsirs/131/verse/{ayah_key}", timeout=10)
+            tafsir_res.raise_for_status()
+            tafsir_data = tafsir_res.json()
+            tafsir_text = tafsir_data.get("text") or "❌ لا يوجد تفسير."
+        except:
             tafsir_text = "❌ تعذر جلب التفسير حالياً."
+
         bot.send_message(call.message.chat.id, f"📖 تفسير الآية {ayah_key}:\n\n{tafsir_text}")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_ayah:"))
     def add_fav_ayah(call):
-        content = call.data.split(":", 1)[1]
-        add_to_fav(call.from_user.id, "ayah", content + "...")
+        ayah_key = call.data.split(":", 1)[1]
+        add_to_fav(call.from_user.id, "ayah", ayah_key)
         bot.answer_callback_query(call.id, "✅ تم حفظ الآية في المفضلة.")
 
-    # ==================== تصفح القرآن =====================
+    # تصفح القرآن
     def ask_surah(msg):
         bot.send_message(msg.chat.id, "📖 اكتب رقم السورة (1 إلى 114):")
         bot.register_next_step_handler(msg, browse_surah)
@@ -113,12 +126,19 @@ def register(bot):
         show_ayah(call.message.chat.id, int(surah), int(ayah))
 
     def show_ayah(chat_id, surah, ayah):
-        res = requests.get(f"https://api.alquran.cloud/v1/ayah/{surah}:{ayah}/ar").json()
-        if res["status"] != "OK":
+        try:
+            res = requests.get(f"https://api.alquran.cloud/v1/ayah/{surah}:{ayah}/ar", timeout=10)
+            res.raise_for_status()
+            data = res.json()
+        except:
             bot.send_message(chat_id, "❌ تعذر جلب الآية.")
             return
 
-        ayah_data = res["data"]
+        if data["status"] != "OK":
+            bot.send_message(chat_id, "❌ تعذر جلب الآية.")
+            return
+
+        ayah_data = data["data"]
         text = f"📖 {ayah_data['surah']['name']} - {ayah_data['numberInSurah']}\n\n{ayah_data['text']}"
 
         reciter = get_user_reciter(chat_id) or "yasser"
