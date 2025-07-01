@@ -7,14 +7,10 @@ from utils.db import (
     get_user_reminder_settings
 )
 import requests
-import pytz
-from telebot import TeleBot
-from config import BOT_TOKEN
 
-bot = TeleBot(BOT_TOKEN)
 API_PRAYER = "http://api.aladhan.com/v1/timings"
 
-def send_adhkar(user_id, time_of_day):
+def send_adhkar(bot, user_id, time_of_day):
     """إرسال أذكار الصباح أو المساء"""
     if time_of_day == 'morning':
         text = "🌅 أذكار الصباح:\n\n🕌 {اذكر الله وابدأ يومك ببركة!}"
@@ -27,7 +23,7 @@ def send_adhkar(user_id, time_of_day):
     except Exception as e:
         print(f"[ERROR] إرسال أذكار {time_of_day}: {e}")
 
-def send_jumuah_reminder(user_id):
+def send_jumuah_reminder(bot, user_id):
     """إرسال تذكير الجمعة"""
     msg = (
         "📿 جمعة مباركة!\n\n"
@@ -40,7 +36,7 @@ def send_jumuah_reminder(user_id):
     except Exception as e:
         print(f"[ERROR] تذكير الجمعة: {e}")
 
-def send_prayer_reminders():
+def send_prayer_reminders(bot):
     """إرسال تنبيهات الصلاة قبل 10 دقائق"""
     now = datetime.utcnow()
     users = get_all_user_ids()
@@ -68,13 +64,17 @@ def send_prayer_reminders():
 
             for key, name in prayers.items():
                 prayer_time = datetime.strptime(timings[key], "%H:%M")
-                now_local = now + timedelta(hours=3)  # Adjust to user's timezone (estimate)
-                if prayer_time.hour == now_local.hour and prayer_time.minute - now_local.minute == 10:
+                now_local = now + timedelta(hours=3)  # مؤقتًا تعويض المنطقة الزمنية
+
+                if (
+                    prayer_time.hour == now_local.hour
+                    and prayer_time.minute - now_local.minute == 10
+                ):
                     bot.send_message(user_id, f"🕌 اقترب موعد صلاة {name} بعد 10 دقائق.")
         except Exception as e:
             print(f"[ERROR] أوقات الصلاة للمستخدم {user_id}: {e}")
 
-def start_reminders():
+def start_reminders(bot):
     """تشغيل التذكيرات في خيوط منفصلة"""
 
     def adhkar_loop():
@@ -84,14 +84,14 @@ def start_reminders():
                 for uid in get_all_user_ids():
                     settings = get_user_reminder_settings(uid)
                     if settings.get("morning_adhkar", True):
-                        send_adhkar(uid, "morning")
+                        send_adhkar(bot, uid, "morning")
                 time.sleep(60)
 
             elif now.hour == 19 and now.minute == 0:
                 for uid in get_all_user_ids():
                     settings = get_user_reminder_settings(uid)
                     if settings.get("evening_adhkar", True):
-                        send_adhkar(uid, "evening")
+                        send_adhkar(bot, uid, "evening")
                 time.sleep(60)
             else:
                 time.sleep(30)
@@ -103,7 +103,7 @@ def start_reminders():
                 for uid in get_all_user_ids():
                     settings = get_user_reminder_settings(uid)
                     if settings.get("jumuah", True):
-                        send_jumuah_reminder(uid)
+                        send_jumuah_reminder(bot, uid)
                 time.sleep(60)
             else:
                 time.sleep(60)
@@ -113,7 +113,7 @@ def start_reminders():
             for uid in get_all_user_ids():
                 settings = get_user_reminder_settings(uid)
                 if settings.get("prayer", True):
-                    send_prayer_reminders()
+                    send_prayer_reminders(bot)
             time.sleep(60)
 
     threading.Thread(target=adhkar_loop, daemon=True).start()
