@@ -24,8 +24,8 @@ def register(bot):
             res = requests.get("https://api.quran.com/v4/verses/random?language=ar&words=false", timeout=10)
             res.raise_for_status()
             data = res.json()["verse"]
-        except Exception as e:
-            bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية.")
+        except Exception:
+            bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية، يرجى المحاولة لاحقاً.")
             return
 
         ayah_text = data.get("text_uthmani", "❌ نص الآية غير متوفر.")
@@ -62,11 +62,14 @@ def register(bot):
         )
         markup.row(
             InlineKeyboardButton("🔁 آية أخرى", callback_data="random_ayah"),
-            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_number}")
+            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_text[:40]}")
         )
 
         bot.send_message(message.chat.id, text, reply_markup=markup)
-        bot.send_audio(message.chat.id, audio_url)
+        try:
+            bot.send_audio(message.chat.id, audio_url)
+        except:
+            bot.send_message(message.chat.id, "⚠️ تعذر تشغيل الصوت. استمتع بقراءة الآية.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "choose_reciter")
     def choose_reciter(call):
@@ -101,8 +104,8 @@ def register(bot):
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_ayah:"))
     def add_fav_ayah(call):
-        ayah_key = call.data.split(":", 1)[1]
-        add_to_fav(call.from_user.id, "ayah", ayah_key)
+        content = call.data.split(":", 1)[1]
+        add_to_fav(call.from_user.id, "ayah", content)
         bot.answer_callback_query(call.id, "✅ تم حفظ الآية في المفضلة.")
 
     # تصفح القرآن
@@ -162,4 +165,7 @@ def register(bot):
         )
 
         bot.send_message(chat_id, text, reply_markup=markup)
-        bot.send_audio(chat_id, audio_url)
+        try:
+            bot.send_audio(chat_id, audio_url)
+        except:
+            bot.send_message(chat_id, "⚠️ تعذر تشغيل الصوت. استمتع بقراءة الآية.")
