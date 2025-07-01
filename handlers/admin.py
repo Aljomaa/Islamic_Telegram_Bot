@@ -6,7 +6,6 @@ from utils.db import (
     reply_to_complaint,
     get_all_users,
 )
-from loader import bot
 
 def register(bot):
     @bot.message_handler(commands=["admin"])
@@ -61,9 +60,9 @@ def register(bot):
 
         complaint_id = call.data.split(":")[1]
         msg = bot.send_message(call.message.chat.id, "✉️ أرسل ردك الآن:")
-        bot.register_next_step_handler(msg, process_reply, complaint_id)
+        bot.register_next_step_handler(msg, lambda m: process_reply(bot, m, complaint_id))
 
-    def process_reply(msg, complaint_id):
+    def process_reply(bot, msg, complaint_id):
         if msg.from_user.id != ADMIN_ID:
             return
         success = reply_to_complaint(complaint_id, msg.text)
@@ -77,9 +76,9 @@ def register(bot):
         if call.from_user.id != ADMIN_ID:
             return
         msg = bot.send_message(call.message.chat.id, "📢 أرسل الرسالة التي تريد إرسالها للجميع:")
-        bot.register_next_step_handler(msg, process_broadcast)
+        bot.register_next_step_handler(msg, lambda m: process_broadcast(bot, m))
 
-    def process_broadcast(msg: Message):
+    def process_broadcast(bot, msg: Message):
         if msg.from_user.id != ADMIN_ID:
             return
         broadcast_message(bot, msg.text)
