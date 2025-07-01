@@ -5,16 +5,26 @@ from utils.db import add_to_fav
 def register(bot):
     @bot.message_handler(commands=['athkar'])
     def send_zekr(msg):
-        res = requests.get("https://azkar-api.vercel.app/api/random")
-        if res.status_code != 200:
-            bot.send_message(msg.chat.id, "❌ تعذر جلب الذكر حالياً.")
+        try:
+            res = requests.get("https://azkar-api.vercel.app/api/random", timeout=10)
+            res.raise_for_status()
+        except Exception:
+            bot.send_message(msg.chat.id, "❌ تعذر جلب الذكر حالياً، حاول لاحقاً.")
             return
 
         data = res.json()
-        text = f"📿 *{data['category']}*\n\n{data['content']}\n\n🔁 *التكرار:* {data['count']}"
+        category = data.get('category', 'ذكر')
+        content = data.get('content', 'لا يوجد ذكر حالياً.')
+        count = data.get('count', '')
+
+        text = f"📿 *{category}*\n\n{content}\n\n🔁 *التكرار:* {count}"
+
+        # لأسباب تتعلق بحجم callback_data نرسل معرف قصير وليس النص الكامل
+        # يمكن نرسل أول 20 حرف فقط للتمييز أو رقم فريد لو متوفر
+        snippet = content[:30].replace(':', '').replace('|', '').replace(';', '')  # تنظيف بعض الأحرف
 
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_zekr:{data['content'][:50]}"))
+        markup.add(InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_zekr:{snippet}"))
         bot.send_message(msg.chat.id, text, parse_mode="Markdown", reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_zekr:"))
