@@ -1,19 +1,19 @@
 import telebot
 from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith
-from tasks import reminders  # استيراد reminders
+from tasks import reminders  # استيراد مهام التذكير
 
 import threading
 from flask import Flask
 
-from utils.db import register_user  # الأفضل استيراد في الأعلى
+from utils.db import register_user  # استيراد دالة تسجيل المستخدم
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# تسجيل المستخدم عند /start
+# تسجيل المستخدم عند أمر /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
-    register_user(msg.from_user)  # تمرير كائن المستخدم كامل كما في db.py
+    register_user(msg.from_user.id)  # إرسال معرف المستخدم فقط
 
     bot.reply_to(msg, """🌙 مرحبًا بك في البوت الإسلامي!
 
@@ -28,7 +28,7 @@ def welcome(msg):
 🧑‍💼 /admin - لوحة تحكم المشرف
 """)
 
-# تسجيل جميع الأوامر
+# تسجيل كل Handlers
 prayers.register(bot)
 quran.register(bot)
 athkar.register(bot)
@@ -37,14 +37,14 @@ complaints.register(bot)
 admin.register(bot)
 hadith.register(bot)
 
-# بدء مهام التذكيرات في خيوط منفصلة
+# بدء مهام التذكيرات في خيوط مستقلة
 reminders.start_reminders()
 
-# تشغيل البوت في خيط منفصل
+# دالة لتشغيل البوت
 def run_bot():
     bot.infinity_polling()
 
-# خادم Flask لتجاوز قيود Render
+# خادم Flask (لتشغيل البوت على منصات مثل Render)
 app = Flask(__name__)
 
 @app.route('/')
