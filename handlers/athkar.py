@@ -1,34 +1,73 @@
 import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
+import logging
+
+# تسجيل الأخطاء
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# مصدر الأذكار من Hisnul Muslim API
+ATHKAR_API_URL = "https://raw.githubusercontent.com/fawazahmed0/athkar-api/main/athkar.json"
 
 def register(bot):
-    @bot.message_handler(commands=['athkar'])
-    def send_zekr(msg):
+    @bot.message_handler(commands=['athkar', 'أذكار'])
+    def show_athkar_menu(msg):
         try:
-            res = requests.get("https://azkar-api.vercel.app/api/random", timeout=10)
-            res.raise_for_status()
-        except Exception:
-            bot.send_message(msg.chat.id, "❌ تعذر جلب الذكر حالياً، حاول لاحقاً.")
-            return
+            response = requests.get(ATHKAR_API_URL, timeout=10)
+            data = response.json()
 
-        data = res.json()
-        category = data.get('category', 'ذكر')
-        content = data.get('content', 'لا يوجد ذكر حالياً.')
-        count = data.get('count', '')
+            categories = list(data.keys())
 
-        text = f"📿 *{category}*\n\n{content}\n\n🔁 *التكرار:* {count}"
+            markup = InlineKeyboardMarkup(row_width=2)
+            for cat in categories:
+                markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar:{cat}"))
 
-        # لأسباب تتعلق بحجم callback_data نرسل معرف قصير وليس النص الكامل
-        # يمكن نرسل أول 20 حرف فقط للتمييز أو رقم فريد لو متوفر
-        snippet = content[:30].replace(':', '').replace('|', '').replace(';', '')  # تنظيف بعض الأحرف
+            bot.send_message(msg.chat.id, "📿 اختر نوع الذكر الذي تريده:", reply_markup=markup)
+        except Exception as e:
+            logger.error(f"Error loading athkar: {e}")
+            bot.send_message(msg.chat.id, "❌ حدث خطأ أثناء تحميل الأذكار. حاول لاحقاً.")
 
-        markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_zekr:{snippet}"))
-        bot.send_message(msg.chat.id, text, parse_mode="Markdown", reply_markup=markup)
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("athkar:"))
+    def show_athkar_list(call):
+        try:
+            category = call.data.split(":", 1)[1]
+            response = requests.get(ATHKAR_API_URL, timeout=10)
+            data = response.json()
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_zekr:"))
-    def add_zekr_fav(call):
-        content = call.data.split(":", 1)[1]
-        add_to_fav(call.from_user.id, "zekr", content + "...")
-        bot.answer_callback_query(call.id, "✅ تم حفظ الذكر في المفضلة.")
+            azkar = data.get(category, [])
+
+            if not azkar:
+                bot.answer_callback_query(call.id, "❌ لا يوجد أذكار في هذا القسم.")
+                return
+
+            for item in azkar[:10]:  # عرض أول 10 أذكار فقط
+                text = f"📿 {item.strip()}"
+                markup = InlineKeyboardMarkup()
+                markup.row(
+                    InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{item[:40]}")
+                )
+                markup.row(
+                    InlineKeyboardButton("🏠 رجوع", callback_data="athkar_menu")
+                )
+                bot.send_message(call.message.chat.id, text, reply_markup=markup)
+
+            bot.answer_callback_query(call.id)
+        except Exception as e:
+            logger.error(f"Error showing athkar list: {e}")
+            bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء عرض الأذكار.")
+
+    @bot.callback_query_handler(func=lambda call: call.data == "athkar_menu")
+    def return_to_menu(call):
+        show_athkar_menu(call.message)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_athkar:"))
+    def add_to_favorites(call):
+        try:
+            snippet = call.data.split(":", 1)[1]
+            content = f"ذكر:\n{snippet}..."
+            add_to_fav(call.from_user.id, "athkar", content)
+            bot.answer_callback_query(call.id, "✅ تم حفظ الذكر في المفضلة.")
+        except Exception as e:
+            logger.error(f"Error adding athkar to fav: {e}")
+            bot.answer_callback_query(call.id, "❌ تعذر حفظ الذكر في المفضلة.")
