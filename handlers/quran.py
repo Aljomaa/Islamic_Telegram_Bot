@@ -1,4 +1,4 @@
-import requests
+import requests, random
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import get_user_reciter, set_user_reciter, add_to_fav
 
@@ -10,156 +10,91 @@ def register(bot):
             InlineKeyboardButton("📖 آية عشوائية", callback_data="random_ayah"),
             InlineKeyboardButton("📚 تصفح القرآن", callback_data="browse_quran")
         )
-        bot.send_message(msg.chat.id, "📖 اختر ما تود القيام به:", reply_markup=markup)
+        bot.send_message(msg.chat.id, "📖 اختر ما تريد:", reply_markup=markup)
 
-    @bot.callback_query_handler(func=lambda call: call.data in ["random_ayah", "browse_quran"])
-    def handle_choice(call):
-        if call.data == "random_ayah":
-            send_random_ayah(call.message)
-        elif call.data == "browse_quran":
-            ask_surah(call.message)
+    @bot.callback_query_handler(func=lambda c: c.data in ["random_ayah", "browse_quran"])
+    def handle_choice(c):
+        if c.data == "random_ayah":
+            send_random(c.message)
+        else:
+            ask_surah(c.message)
 
-    def send_random_ayah(message):
-        try:
-            res = requests.get("https://api.quran.com/v4/verses/random?language=ar&words=false", timeout=10)
-            res.raise_for_status()
-            data = res.json()["verse"]
-        except Exception:
-            bot.send_message(message.chat.id, "❌ فشل في جلب آية عشوائية.")
-            return
+    def send_random(message):
+        # 1) اختر سورة عشوائية
+        surah = random.randint(1, 114)
+        # 2) جلب السورة للحصول على عدد آيات
+        s = requests.get(f"https://api.alquran.cloud/v1/surah/{surah}/ar").json()
+        verses = s.get("data", {}).get("ayahs", [])
+        if not verses:
+            return bot.send_message(message.chat.id, "❌ خطأ في تصفح القرآن.")
 
-        ayah_text = data.get("text_uthmani", "❌ نص الآية غير متوفر.")
-        ayah_number = data.get("verse_key", "")
-        surah_id = data.get("chapter_id", None) or data.get("surah_id", None)
+        # 3) اختر آية عشوائية وجلبها
+        ayah = random.choice(verses)
+        show_ayah(message.chat.id, surah, ayah["numberInSurah"])
 
-        if not ayah_number or not surah_id:
-            bot.send_message(message.chat.id, "❌ فشل في جلب بيانات الآية.")
-            return
-
-        try:
-            surah_res = requests.get(f"https://api.quran.com/v4/chapters/{surah_id}?language=ar", timeout=10)
-            surah_res.raise_for_status()
-            surah_name = surah_res.json()["chapter"]["name_arabic"]
-        except:
-            surah_name = "سورة غير معروفة"
-
-        reciter = get_user_reciter(message.from_user.id) or "yasser"
-        reciters = {
-            "yasser": "Yasser_Ad-Dussary_64kbps",
-            "mishary": "Mishari_Alafasy_64kbps",
-            "basit": "Abdul_Basit_Mujawwad_64kbps",
-            "massad": "Abdurrahmaan_As-Sudais_64kbps"
-        }
-        reciter_code = reciters.get(reciter, reciters["yasser"])
-        audio_url = f"https://verses.quran.com/{reciter_code}/{ayah_number.replace(':', '_')}.mp3"
-
-        text = f"📖 {surah_name} - {ayah_number}\n\n{ayah_text}"
-
-        markup = InlineKeyboardMarkup()
-        markup.row(
-            InlineKeyboardButton("📖 تفسير الآية", callback_data=f"tafsir:{ayah_number}"),
-            InlineKeyboardButton("🎙️ اختيار القارئ", callback_data="choose_reciter")
-        )
-        markup.row(
-            InlineKeyboardButton("📖 آية أخرى", callback_data="random_ayah"),
-            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_number}")
-        )
-
-        bot.send_message(message.chat.id, text, reply_markup=markup)
-        bot.send_audio(message.chat.id, audio_url)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "choose_reciter")
-    def choose_reciter(call):
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton("🎧 ياسر الدوسري", callback_data="reciter:yasser"),
-            InlineKeyboardButton("🎧 مشاري العفاسي", callback_data="reciter:mishary"),
-            InlineKeyboardButton("🎧 عبد الباسط", callback_data="reciter:basit"),
-            InlineKeyboardButton("🎧 عبد الرحمن مسعد", callback_data="reciter:massad")
-        )
-        bot.edit_message_text("🎙️ اختر القارئ المفضل:", call.message.chat.id, call.message.message_id, reply_markup=markup)
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("reciter:"))
-    def save_reciter(call):
-        reciter_key = call.data.split(":")[1]
-        set_user_reciter(call.from_user.id, reciter_key)
-        bot.answer_callback_query(call.id, "✅ تم حفظ القارئ المفضل.")
-        bot.edit_message_text("✅ تم تحديث القارئ المفضل بنجاح.", call.message.chat.id, call.message.message_id)
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("tafsir:"))
-    def tafsir(call):
-        ayah_key = call.data.split(":")[1]
-        try:
-            tafsir_res = requests.get(f"https://api.quran.com/v4/tafsirs/131/verse/{ayah_key}", timeout=10)
-            tafsir_res.raise_for_status()
-            tafsir_data = tafsir_res.json()
-            tafsir_text = tafsir_data.get("text") or "❌ لا يوجد تفسير."
-        except:
-            tafsir_text = "❌ تعذر جلب التفسير حالياً."
-
-        bot.send_message(call.message.chat.id, f"📖 تفسير الآية {ayah_key}:\n\n{tafsir_text}")
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_ayah:"))
-    def add_fav_ayah(call):
-        ayah_key = call.data.split(":", 1)[1]
-        add_to_fav(call.from_user.id, "ayah", ayah_key)
-        bot.answer_callback_query(call.id, "✅ تم حفظ الآية في المفضلة.")
-
-    # تصفح القرآن
     def ask_surah(msg):
-        bot.send_message(msg.chat.id, "📖 اكتب رقم السورة (1 إلى 114):")
+        bot.send_message(msg.chat.id, "📖 اكتب رقم السورة (1–114):")
         bot.register_next_step_handler(msg, browse_surah)
 
     def browse_surah(msg):
         try:
-            surah = int(msg.text.strip())
-            if not (1 <= surah <= 114):
-                raise ValueError
+            num = int(msg.text.strip())
+            if not 1 <= num <= 114: raise
         except:
-            bot.send_message(msg.chat.id, "❌ رقم غير صحيح.")
-            return
-        show_ayah(msg.chat.id, surah, 1)
+            return bot.send_message(msg.chat.id, "❌ رقم غير صحيح.")
+        show_ayah(msg.chat.id, num, 1)
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("nav:"))
-    def navigate_ayah(call):
-        _, surah, ayah = call.data.split(":")
-        show_ayah(call.message.chat.id, int(surah), int(ayah))
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("nav:"))
+    def nav(c):
+        _, sur, ay = c.data.split(":")
+        show_ayah(c.message.chat.id, int(sur), int(ay))
 
     def show_ayah(chat_id, surah, ayah):
-        try:
-            res = requests.get(f"https://api.alquran.cloud/v1/ayah/{surah}:{ayah}/ar", timeout=10)
-            res.raise_for_status()
-            data = res.json()
-        except:
-            bot.send_message(chat_id, "❌ تعذر جلب الآية.")
-            return
+        r = requests.get(f"https://api.alquran.cloud/v1/ayah/{surah}:{ayah}/ar").json()
+        if r.get("status") != "OK":
+            return bot.send_message(chat_id, "❌ فشل في جلب الآية.")
+        d = r["data"]
+        text = f"📖 سورة {d['surah']['name']} – آية {d['numberInSurah']}\n\n{d['text']}"
 
-        if data["status"] != "OK":
-            bot.send_message(chat_id, "❌ تعذر جلب الآية.")
-            return
-
-        ayah_data = data["data"]
-        text = f"📖 {ayah_data['surah']['name']} - {ayah_data['numberInSurah']}\n\n{ayah_data['text']}"
-
-        reciter = get_user_reciter(chat_id) or "yasser"
-        reciters = {
+        rec = get_user_reciter(chat_id) or "yasser"
+        recs = {
             "yasser": "Yasser_Ad-Dussary_64kbps",
             "mishary": "Mishari_Alafasy_64kbps",
             "basit": "Abdul_Basit_Mujawwad_64kbps",
             "massad": "Abdurrahmaan_As-Sudais_64kbps"
         }
-        reciter_code = reciters.get(reciter, reciters["yasser"])
-        audio_url = f"https://verses.quran.com/{reciter_code}/{surah}_{ayah}.mp3"
+        aucode = recs.get(rec, list(recs.values())[0])
+        audio = f"https://verses.quran.com/{aucode}/{surah}_{ayah}.mp3"
 
         markup = InlineKeyboardMarkup()
         markup.row(
-            InlineKeyboardButton("⏮️ السابق", callback_data=f"nav:{surah}:{ayah - 1 if ayah > 1 else 1}"),
-            InlineKeyboardButton("⏭️ التالي", callback_data=f"nav:{surah}:{ayah + 1}")
+            InlineKeyboardButton("⏮️ السابق", callback_data=f"nav:{surah}:{max(ayah-1,1)}"),
+            InlineKeyboardButton("⏭️ التالي", callback_data=f"nav:{surah}:{ayah+1}")
         )
         markup.row(
-            InlineKeyboardButton("📖 تفسير الآية", callback_data=f"tafsir:{surah}:{ayah}"),
-            InlineKeyboardButton("⭐ إضافة إلى المفضلة", callback_data=f"fav_ayah:{ayah_data['text'][:40]}")
+            InlineKeyboardButton("🎙️ تغيير القارئ", callback_data="choose_reciter"),
+            InlineKeyboardButton("⭐ المفضلة", callback_data=f"fav_ayah:{surah}:{ayah}")
         )
 
         bot.send_message(chat_id, text, reply_markup=markup)
-        bot.send_audio(chat_id, audio_url)
+        bot.send_audio(chat_id, audio)
+
+    @bot.callback_query_handler(func=lambda c: c.data == "choose_reciter")
+    def pick_reciter(c):
+        m = InlineKeyboardMarkup(row_width=2)
+        for k,n in [("yasser","🎧 ياسر"),("mishary","🎧 مشاري"),("basit","🎧 عبدالباسط"),("massad","🎧 مسعد")]:
+            m.add(InlineKeyboardButton(n, callback_data=f"reciter:{k}"))
+        bot.edit_message_text("اختار قارئ:", c.message.chat.id, c.message.message_id, reply_markup=m)
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("reciter:"))
+    def save_reciter_call(c):
+        key = c.data.split(":")[1]
+        set_user_reciter(c.from_user.id, key)
+        bot.answer_callback_query(c.id, "✅ حفظ التفضيل.")
+        bot.edit_message_text("تم اختيار القارئ بنجاح.", c.message.chat.id, c.message.message_id)
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("fav_ayah:"))
+    def fav_ayah(c):
+        sur, ay = c.data.split(":")[1:]
+        add_to_fav(c.from_user.id, "ayah", f"{sur}:{ay}")
+        bot.answer_callback_query(c.id, "✅ أضيف للمفضلة.")
