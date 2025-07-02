@@ -3,7 +3,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
 import random
 import logging
-from main import show_main_menu  # ✅ لزر العودة إلى القائمة الرئيسية
+from utils.menu import show_main_menu  ✅✅  # ✅ لزر العودة إلى القائمة الرئيسية
 
 # تهيئة نظام تسجيل الأخطاء
 logging.basicConfig(
