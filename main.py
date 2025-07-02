@@ -10,7 +10,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 ADMIN_ID = 6849903309
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# بدء التذكيرات
+# ✅ بدء التذكيرات
 reminders.start_reminders(bot)
 
 # ✅ عرض القائمة الرئيسية
@@ -83,10 +83,12 @@ def handle_main_menu(call):
         show_hadith_menu(bot, call.message)
 
     elif action == "fav":
-        bot.send_message(call.message.chat.id, "/fav")
+        from handlers.favorites import show_fav_main_menu
+        show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "complain":
-        bot.send_message(call.message.chat.id, "/complain")
+        from handlers.complaints import show_complaint_menu
+        show_complaint_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "admin":
         if call.from_user.id == ADMIN_ID:
