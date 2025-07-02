@@ -1,7 +1,7 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import get_user_reminder_settings, update_reminder_setting
 
-# ✅ دالة عرض إعدادات الإشعارات
+# ✅ عرض إعدادات الإشعارات
 def show_settings_menu(bot, chat_id, message_id=None):
     settings = get_user_reminder_settings(chat_id)
 
@@ -16,7 +16,7 @@ def show_settings_menu(bot, chat_id, message_id=None):
         InlineKeyboardButton(get_label("تذكير الجمعة", "jumuah", "📿"), callback_data="settings:toggle:jumuah"),
         InlineKeyboardButton(get_label("تذكيرات الصلاة", "prayer", "🕌"), callback_data="settings:toggle:prayer")
     )
-    markup.add(InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="settings:back"))
+    markup.add(InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
 
     text = "⚙️ إعدادات الإشعارات:\n\nقم بالنقر على أي خيار لتفعيله أو إيقافه:"
     if message_id:
@@ -39,7 +39,8 @@ def register(bot):
         bot.answer_callback_query(call.id, f"{'✅ تم التفعيل' if not current_value else '❌ تم الإلغاء'}")
         show_settings_menu(bot, call.from_user.id, call.message.message_id)
 
-    @bot.callback_query_handler(func=lambda call: call.data == "settings:back")
-    def back_to_main_menu(call):
-        from main import welcome
-        welcome(call)
+    # ✅ زر الرجوع للقائمة الرئيسية
+    @bot.callback_query_handler(func=lambda call: call.data == "back_to_main")
+    def back_to_main(call):
+        from main import show_main_menu
+        show_main_menu(bot, call.message)
