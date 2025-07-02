@@ -1,12 +1,15 @@
 import os
 import requests
+from dotenv import load_dotenv
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import set_user_location, get_user_location
-from dotenv import load_dotenv
 
 load_dotenv()
-TIMEZONE_API_KEY = os.getenv("TIMEZONE_API_KEY")
 
+TIMEZONE_API_KEY = os.getenv("TIMEZONE_API_KEY")
+TIMEZONE_API_URL = "http://api.timezonedb.com/v2.1/get-time-zone"
+
+# ✅ تسجيل أوامر الصلاة
 def register(bot):
     @bot.message_handler(commands=['prayer'])
     def ask_location(msg):
@@ -23,24 +26,27 @@ def register(bot):
     def handle_location(msg):
         lat = msg.location.latitude
         lon = msg.location.longitude
-        timezone = get_timezone_from_api(lat, lon)
-        set_user_location(msg.from_user.id, lat, lon, timezone)
+
+        # ✅ جلب المنطقة الزمنية تلقائيًا
+        tz_name = "auto"
+        try:
+            params = {
+                "key": TIMEZONE_API_KEY,
+                "format": "json",
+                "by": "position",
+                "lat": lat,
+                "lng": lon
+            }
+            res = requests.get(TIMEZONE_API_URL, params=params, timeout=10)
+            data = res.json()
+            tz_name = data.get("zoneName", "auto")
+        except Exception as e:
+            print(f"[ERROR] جلب التوقيت المحلي: {e}")
+
+        set_user_location(msg.from_user.id, lat, lon, tz_name)
         show_prayer_times(bot, msg)
 
-# ✅ إحضار المنطقة الزمنية من API
-def get_timezone_from_api(lat, lon):
-    try:
-        res = requests.get(
-            f"https://api.timezonedb.com/v2.1/get-time-zone?key={TIMEZONE_API_KEY}&format=json&by=position&lat={lat}&lng={lon}&fields=zoneName",
-            timeout=10
-        )
-        data = res.json()
-        return data.get("zoneName", "auto")
-    except Exception as e:
-        print(f"[ERROR] Timezone API: {e}")
-        return "auto"
-
-# ✅ عرض أوقات الصلاة
+# ✅ عرض أوقات الصلاة (يمكن استدعاؤها من أي مكان)
 def show_prayer_times(bot, message):
     lat, lon = get_user_location(message.chat.id)
     if not lat or not lon:
@@ -72,6 +78,7 @@ def show_prayer_times(bot, message):
             f"🌃 العشاء: <b>{times['Isha']}</b>\n"
         )
 
+        # ✅ زر العودة إلى القائمة الرئيسية
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("⬅️ العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
 
