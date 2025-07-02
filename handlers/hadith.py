@@ -4,6 +4,7 @@ import random
 from dotenv import load_dotenv
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from utils.db import add_to_fav
+from main import show_main_menu
 
 load_dotenv()
 API_KEY = os.getenv("HADITH_API_KEY")
@@ -37,137 +38,96 @@ def register(bot):
     def hadith_command(msg):
         show_hadith_menu(bot, msg)
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_book:"))
-    def select_book(call):
-        slug = call.data.split(":")[1]
-        page = 1
-        try:
-            hadiths = fetch_hadiths(slug, page)
-            if not hadiths:
-                bot.send_message(call.message.chat.id, "❌ لا توجد أحاديث في هذا الكتاب.")
-                return
-            user_sessions[call.message.chat.id] = {'slug': slug, 'hadiths': hadiths, 'index': 0, 'page': page}
-            send_method_menu(bot, call.message.chat.id, call.message.message_id)
-        except Exception as e:
-            print(f"[ERROR] load_hadiths: {e}")
-            bot.send_message(call.message.chat.id, "❌ حدث خطأ أثناء تحميل الأحاديث.")
-
-    def fetch_hadiths(slug, page=1):
-        url = f"{API_BASE}/hadiths"
+    def fetch_hadith(slug, number):
+        url = f"{API_BASE}/hadiths/{number}"
         params = {
             "apiKey": API_KEY,
             "book": slug,
-            "language": "arabic",
-            "limit": 25,
-            "page": page
+            "language": "arabic"
         }
         res = requests.get(url, headers=HEADERS, params=params, timeout=10)
         res.raise_for_status()
         data = res.json()
-        return data['hadiths']['data']
+        return data.get('hadith', {})
 
-    def send_method_menu(bot, chat_id, message_id):
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("📖 حديث عشوائي", callback_data="random_hadith"),
-            InlineKeyboardButton("🔢 حديث برقم", callback_data="get_by_number")
-        )
-        markup.add(InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="hadith_back_to_books"))
-        bot.edit_message_text("🕌 اختر طريقة عرض الحديث:", chat_id, message_id, reply_markup=markup)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "random_hadith")
-    def random_hadith(call):
-        session = user_sessions.get(call.message.chat.id)
-        if not session:
-            return show_hadith_menu(bot, call.message)
-        index = random.randint(0, len(session['hadiths']) - 1)
-        session['index'] = index
-        show_hadith(bot, call.message.chat.id, session, call.message.message_id, edit=True)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "get_by_number")
-    def ask_for_number(call):
-        bot.send_message(call.message.chat.id, "📥 أرسل رقم الحديث الذي تريد عرضه:", reply_markup=ForceReply())
-
-    @bot.message_handler(func=lambda msg: msg.reply_to_message and "أرسل رقم الحديث" in msg.reply_to_message.text)
-    def get_by_number(msg):
-        session = user_sessions.get(msg.chat.id)
-        if not session:
-            return show_hadith_menu(bot, msg)
+    def show_hadith(bot, chat_id, slug, number, message_id=None, edit=False):
         try:
-            number = int(msg.text)
-            slug = session['slug']
-            page = (number - 1) // 25 + 1
-            index = (number - 1) % 25
-            hadiths = fetch_hadiths(slug, page)
-            if not (0 <= index < len(hadiths)):
-                return bot.send_message(msg.chat.id, "❌ الحديث غير موجود في هذه الصفحة.")
-            user_sessions[msg.chat.id] = {'slug': slug, 'hadiths': hadiths, 'index': index, 'page': page}
-            show_hadith(bot, msg.chat.id, user_sessions[msg.chat.id])
-        except:
-            bot.send_message(msg.chat.id, "❌ الرقم غير صحيح.")
+            hadith = fetch_hadith(slug, number)
+            text = hadith.get("hadithArabic", "")
+            if not text:
+                return bot.send_message(chat_id, "❌ لا يوجد نص لهذا الحديث.")
 
-    def show_hadith(bot, chat_id, session, message_id=None, edit=False):
-        try:
-            index = session['index']
-            slug = session['slug']
-            hadith = session['hadiths'][index]
-            number = hadith.get("hadithNumber", index + 1)
-            text = hadith.get("hadithArabic", "❌ لا يوجد نص")
+            book_name = BOOKS.get(slug, "📘 الحديث")
+            msg_text = f"{book_name}\n\n🆔 الحديث رقم {number}\n\n{text}"
 
-            msg = f"{BOOKS.get(slug)}\n\n🆔 الحديث رقم {number}\n\n{text}"
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_hadith:{slug}:{number}"))
+            markup.add(
+                InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_hadith:{slug}:{number}")
+            )
 
-            nav = []
-            if index > 0:
-                nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"hadith_nav:{index - 1}"))
-            if index < len(session['hadiths']) - 1:
-                nav.append(InlineKeyboardButton("▶️ التالي", callback_data=f"hadith_nav:{index + 1}"))
-            if nav:
+            nav = [
+                InlineKeyboardButton("◀️ السابق", callback_data=f"hadith_nav:{slug}:{number-1}"),
+                InlineKeyboardButton("▶️ التالي", callback_data=f"hadith_nav:{slug}:{number+1}")
+            ]
+            if number > 1:
                 markup.row(*nav)
+            else:
+                markup.add(nav[1])  # لا تضف السابق إذا الرقم 1
 
             markup.add(InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="hadith_back_to_books"))
             markup.add(InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
 
             if edit and message_id:
-                bot.edit_message_text(msg, chat_id, message_id, reply_markup=markup)
+                bot.edit_message_text(msg_text, chat_id, message_id, reply_markup=markup)
             else:
-                bot.send_message(chat_id, msg, reply_markup=markup)
+                bot.send_message(chat_id, msg_text, reply_markup=markup)
+
         except Exception as e:
             print(f"[ERROR] show_hadith: {e}")
             bot.send_message(chat_id, "❌ تعذر عرض الحديث.")
 
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_book:"))
+    def select_book(call):
+        slug = call.data.split(":")[1]
+        number = 1
+        show_hadith(bot, call.message.chat.id, slug, number, call.message.message_id, edit=True)
+
     @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_nav:"))
     def navigate(call):
         try:
-            new_index = int(call.data.split(":")[1])
-            session = user_sessions.get(call.message.chat.id)
-            if not session:
-                return show_hadith_menu(bot, call.message)
-            if not (0 <= new_index < len(session['hadiths'])):
-                return bot.answer_callback_query(call.id, "❌ حديث غير موجود.")
-            session['index'] = new_index
-            show_hadith(bot, call.message.chat.id, session, call.message.message_id, edit=True)
+            _, slug, number = call.data.split(":")
+            number = int(number)
+            if number < 1:
+                return bot.answer_callback_query(call.id, "❌ لا يوجد حديث قبل هذا الرقم.")
+            show_hadith(bot, call.message.chat.id, slug, number, call.message.message_id, edit=True)
         except Exception as e:
-            print(f"[ERROR] navigate_hadith: {e}")
-            bot.answer_callback_query(call.id, "❌ خطأ في التنقل.")
+            print(f"[ERROR] navigate: {e}")
+            bot.answer_callback_query(call.id, "❌ تعذر التنقل.")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_hadith:"))
-    def add_to_favorites(call):
+    def save_favorite(call):
         try:
             _, slug, number = call.data.split(":")
-            content = f"{BOOKS.get(slug)} - رقم {number}"
+            number = int(number)
+            hadith = fetch_hadith(slug, number)
+            if not hadith:
+                return bot.answer_callback_query(call.id, "❌ لم يتم العثور على الحديث.")
+            content = {
+                "type": "hadith",
+                "book": BOOKS.get(slug, slug),
+                "number": number,
+                "text": hadith.get("hadithArabic", "")
+            }
             add_to_fav(call.from_user.id, "hadith", content)
             bot.answer_callback_query(call.id, "✅ تم الحفظ في المفضلة.")
         except Exception as e:
-            print(f"[ERROR] add_to_fav: {e}")
+            print(f"[ERROR] fav_hadith: {e}")
             bot.answer_callback_query(call.id, "❌ فشل الحفظ.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "hadith_back_to_books")
-    def back_to_books(call):
+    def back_books(call):
         show_hadith_menu(bot, call.message)
 
     @bot.callback_query_handler(func=lambda call: call.data == "back_to_main")
-    def back_to_main_menu(call):
-        from main import show_main_menu
+    def back_main(call):
         show_main_menu(bot, call.message)
