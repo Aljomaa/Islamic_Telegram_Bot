@@ -15,6 +15,7 @@ def register_user(user):
     if not user_col.find_one({"_id": user_id}):
         user_col.insert_one({
             "_id": user_id,
+            "notifications_enabled": True,
             "reminder_settings": {
                 "morning_adhkar": True,
                 "evening_adhkar": True,
