@@ -65,7 +65,7 @@ def handle_main_menu(call):
 
     elif action == "quran":
         from handlers.quran import show_main_quran_menu
-        show_main_quran_menu(bot, call.message)
+        show_main_quran_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "athkar":
         from handlers.athkar import show_athkar_menu
