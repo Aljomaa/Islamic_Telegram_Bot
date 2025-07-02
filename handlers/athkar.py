@@ -33,7 +33,8 @@ def register(bot):
                 url = ATHKAR_CATEGORIES[category]
                 res = requests.get(url, timeout=10)
                 res.raise_for_status()
-                athkar_list = res.json()
+                data = res.json()
+                athkar_list = data.get("content", [])
                 athkar_cache[category] = athkar_list
             else:
                 athkar_list = athkar_cache[category]
@@ -58,7 +59,7 @@ def register(bot):
         try:
             _, category, index = call.data.split(":")
             index = int(index)
-            content = athkar_cache[category][index].get("content", "")
+            content = athkar_cache[category][index].get("zekr", "")
             add_to_fav(call.from_user.id, "athkar", content)
             bot.answer_callback_query(call.id, "✅ تم حفظ الذكر في المفضلة.")
         except Exception as e:
@@ -67,7 +68,8 @@ def register(bot):
 
     @bot.callback_query_handler(func=lambda call: call.data == "athkar_main")
     def return_to_main(call):
-        show_athkar_menu(bot, call.message)
+        from main import welcome  # استدعاء القائمة الرئيسية
+        welcome(call.message)
 
 def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=False):
     try:
@@ -77,9 +79,9 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
             return
 
         item = athkar_list[index]
-        text = item.get("content", "").strip()
+        text = item.get("zekr", "").strip()
         count = item.get("repeat", "")
-        reference = item.get("reference", "")
+        reference = item.get("reference", "") or item.get("bless", "")
 
         final_text = f"📿 *{category}*\n\n{text}"
         if count:
@@ -89,7 +91,6 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
 
         markup = InlineKeyboardMarkup()
 
-        # التنقل
         nav_buttons = []
         if index > 0:
             nav_buttons.append(InlineKeyboardButton("◀️ السابق", callback_data=f"athkar_nav:{category}:{index - 1}"))
@@ -98,10 +99,9 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
         if nav_buttons:
             markup.row(*nav_buttons)
 
-        # أزرار المفضلة والعودة
         markup.row(
             InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}"),
-            InlineKeyboardButton("🔙 العودة للقائمة", callback_data="athkar_main")
+            InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="athkar_main")
         )
 
         if edit and message_id:
