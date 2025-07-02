@@ -2,7 +2,7 @@ import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
 import logging
-from utils.menu import show_main_menu  # ✅ لإرجاع المستخدم للقائمة الرئيسية بدون circular import
+from utils.menu import show_main_menu
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -19,10 +19,13 @@ def show_athkar_menu(bot, chat_id, message_id=None):
     markup = InlineKeyboardMarkup(row_width=2)
     for cat in ATHKAR_CATEGORIES:
         markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar_cat:{cat}"))
-    markup.add(InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="main_menu"))
+    markup.add(InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="main_menu"))
 
     try:
-        bot.edit_message_text("📿 اختر نوع الأذكار:", chat_id, message_id, reply_markup=markup)
+        if message_id:
+            bot.edit_message_text("📿 اختر نوع الأذكار:", chat_id, message_id, reply_markup=markup)
+        else:
+            bot.send_message(chat_id, "📿 اختر نوع الأذكار:", reply_markup=markup)
     except:
         bot.send_message(chat_id, "📿 اختر نوع الأذكار:", reply_markup=markup)
 
@@ -65,7 +68,11 @@ def register(bot):
         try:
             _, category, index = call.data.split(":")
             index = int(index)
-            content = athkar_cache[category][index].get("zekr", "")
+            item = athkar_cache[category][index]
+            content = {
+                "type": "athkar",
+                "content": item.get("zekr", "")
+            }
             add_to_fav(call.from_user.id, "athkar", content)
             bot.answer_callback_query(call.id, "✅ تم حفظ الذكر في المفضلة.")
         except Exception as e:
@@ -109,7 +116,9 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
             markup.row(*nav_buttons)
 
         markup.row(
-            InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}"),
+            InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}")
+        )
+        markup.row(
             InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="athkar_main"),
             InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu")
         )
