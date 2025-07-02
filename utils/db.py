@@ -1,5 +1,7 @@
 from pymongo import MongoClient
 from config import MONGO_URI
+from bson import ObjectId
+from datetime import datetime
 
 client = MongoClient(MONGO_URI)
 db = client["islamic_bot"]
@@ -110,23 +112,72 @@ def set_user_reciter(user_id, reciter):
     )
 
 # ===============================
-# 🧾 الشكاوى والاقتراحات
+# 🧾 الشكاوى والاقتراحات (جديد)
 # ===============================
+def add_complaint(msg, type_):
+    media_type = None
+    file_id = None
+
+    if msg.text:
+        content = msg.text
+        media_type = 'text'
+    elif msg.photo:
+        content = msg.caption or ""
+        media_type = 'photo'
+        file_id = msg.photo[-1].file_id
+    elif msg.voice:
+        content = msg.caption or ""
+        media_type = 'voice'
+        file_id = msg.voice.file_id
+    elif msg.video:
+        content = msg.caption or ""
+        media_type = 'video'
+        file_id = msg.video.file_id
+    elif msg.sticker:
+        content = ""
+        media_type = 'sticker'
+        file_id = msg.sticker.file_id
+    else:
+        return False
+
+    comp_col.insert_one({
+        "user_id": msg.from_user.id,
+        "username": msg.from_user.username or "غير معروف",
+        "full_name": msg.from_user.full_name or "غير معروف",
+        "text": content,
+        "media_type": media_type,
+        "file_id": file_id,
+        "status": "open",
+        "type": type_,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+    return True
+
 def get_complaints():
     return list(comp_col.find({"status": "open"}))
 
+def get_all_complaints(filter_by=None):
+    query = {}
+    if filter_by:
+        query.update(filter_by)
+    return list(comp_col.find(query).sort("_id", -1))
+
+def update_complaint_status(comp_id, status="closed"):
+    comp_col.update_one({"_id": ObjectId(comp_id)}, {"$set": {"status": status}})
+
 def reply_to_complaint(comp_id, reply_text, bot=None):
-    comp = comp_col.find_one({"_id": comp_id})
+    comp = comp_col.find_one({"_id": ObjectId(comp_id)})
     if not comp:
         return False
     user_id = comp["user_id"]
     try:
+        message = f"📩 رد الإدارة على {'الشكوى' if comp['type'] == 'complaint' else 'الاقتراح'}:\n\n{reply_text}"
         if bot:
-            bot.send_message(user_id, f"📩 رد الإدارة على شكواك:\n\n{reply_text}")
+            bot.send_message(user_id, message)
         else:
             from loader import bot as default_bot
-            default_bot.send_message(user_id, f"📩 رد الإدارة على شكواك:\n\n{reply_text}")
-        comp_col.update_one({"_id": comp_id}, {"$set": {"status": "closed"}})
+            default_bot.send_message(user_id, message)
+        update_complaint_status(comp_id, "closed")
         return True
     except:
         return False
