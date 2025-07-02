@@ -1,25 +1,7 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import get_user_reminder_settings, update_reminder_setting
 
-def register(bot):
-    @bot.message_handler(commands=['settings'])
-    def show_settings_menu_command(msg):
-        show_settings_menu(bot, msg.chat.id)
-
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("settings:toggle:"))
-    def toggle_setting(call):
-        _, _, setting_key = call.data.split(":")
-        current_settings = get_user_reminder_settings(call.from_user.id)
-        current_value = current_settings.get(setting_key, True)
-        update_reminder_setting(call.from_user.id, setting_key, not current_value)
-        bot.answer_callback_query(call.id, f"{'✅ تم التفعيل' if not current_value else '❌ تم الإلغاء'}")
-        show_settings_menu(bot, call.from_user.id, call.message.message_id)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "settings:back")
-    def back_to_main_menu(call):
-        from main import welcome
-        welcome(call)
-
+# ✅ دالة عرض إعدادات الإشعارات
 def show_settings_menu(bot, chat_id, message_id=None):
     settings = get_user_reminder_settings(chat_id)
 
@@ -41,3 +23,23 @@ def show_settings_menu(bot, chat_id, message_id=None):
         bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
     else:
         bot.send_message(chat_id, text, reply_markup=markup)
+
+# ✅ تسجيل الأوامر والمعالجات الخاصة بالإعدادات
+def register(bot):
+    @bot.message_handler(commands=['settings'])
+    def show_settings_menu_command(msg):
+        show_settings_menu(bot, msg.chat.id)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("settings:toggle:"))
+    def toggle_setting(call):
+        _, _, setting_key = call.data.split(":")
+        current_settings = get_user_reminder_settings(call.from_user.id)
+        current_value = current_settings.get(setting_key, True)
+        update_reminder_setting(call.from_user.id, setting_key, not current_value)
+        bot.answer_callback_query(call.id, f"{'✅ تم التفعيل' if not current_value else '❌ تم الإلغاء'}")
+        show_settings_menu(bot, call.from_user.id, call.message.message_id)
+
+    @bot.callback_query_handler(func=lambda call: call.data == "settings:back")
+    def back_to_main_menu(call):
+        from main import welcome
+        welcome(call)
