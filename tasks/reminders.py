@@ -72,7 +72,7 @@ def send_prayer_reminders(bot):
             continue
 
         try:
-            user_tz = tz(tz_name) if tz_name != "auto" else utc
+            user_tz = tz(tz_name) if tz_name and tz_name != "auto" else utc
             now_user = now_utc.replace(tzinfo=utc).astimezone(user_tz)
 
             response = requests.get(f"{API_PRAYER}?latitude={lat}&longitude={lon}&method=4", timeout=10)
@@ -118,7 +118,7 @@ def start_reminders(bot):
             now_utc = datetime.utcnow()
             for uid in get_all_user_ids():
                 tz_name = get_user_timezone(uid)
-                user_tz = tz(tz_name) if tz_name != "auto" else utc
+                user_tz = tz(tz_name) if tz_name and tz_name != "auto" else utc
                 now_local = now_utc.replace(tzinfo=utc).astimezone(user_tz)
                 settings = get_user_reminder_settings(uid)
                 if now_local.weekday() == 4 and now_local.hour == 9 and now_local.minute == 0 and settings.get("jumuah", True):
