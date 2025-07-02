@@ -1,7 +1,7 @@
 import threading
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import timezone as tz, utc
 from utils.db import (
     get_all_user_ids,
@@ -12,6 +12,9 @@ from utils.db import (
 
 API_PRAYER = "http://api.aladhan.com/v1/timings"
 ATHKAR_API = "https://raw.githubusercontent.com/hisnmuslim/hisn-muslim-api/main/ar/hisn.json"
+
+# لتجنب السبام في الصلاة
+last_sent_prayer = {}
 
 def send_adhkar(bot, user_id, time_of_day):
     try:
@@ -26,7 +29,7 @@ def send_adhkar(bot, user_id, time_of_day):
             return
 
         for item in azkar[:10]:  # أرسل أول 10 أذكار فقط
-            text = f"📿 {item.get('content', '').strip()}"
+            text = f"📿 {item.get('zekr', '').strip()}"
             bot.send_message(user_id, text)
     except Exception as e:
         print(f"[ERROR] إرسال أذكار {time_of_day}: {e}")
@@ -42,6 +45,16 @@ def send_jumuah_reminder(bot, user_id):
         bot.send_message(user_id, msg)
     except Exception as e:
         print(f"[ERROR] تذكير الجمعة: {e}")
+
+def should_send_prayer_reminder(user_id, prayer_key):
+    now = datetime.utcnow()
+    key = (user_id, prayer_key)
+    last_time = last_sent_prayer.get(key)
+
+    if not last_time or (now - last_time) > timedelta(minutes=30):
+        last_sent_prayer[key] = now
+        return True
+    return False
 
 def send_prayer_reminders(bot):
     now_utc = datetime.utcnow()
@@ -79,10 +92,11 @@ def send_prayer_reminders(bot):
 
                 delta = (prayer_time - now_user).total_seconds() / 60
                 if 9 <= delta <= 11:
-                    bot.send_message(
-                        user_id,
-                        f"🕌 اقترب موعد صلاة {name} بعد 10 دقائق، تجهز أثابك الله وهداك ونفع بك 🤲"
-                    )
+                    if should_send_prayer_reminder(user_id, key):
+                        bot.send_message(
+                            user_id,
+                            f"🕌 اقترب موعد صلاة {name} بعد 10 دقائق، تجهز أثابك الله وهداك ونفع بك 🤲"
+                        )
         except Exception as e:
             print(f"[ERROR] تذكير الصلاة للمستخدم {user_id}: {e}")
 
