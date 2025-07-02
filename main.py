@@ -7,15 +7,13 @@ import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# المعرف الخاص بالمشرف
 ADMIN_ID = 6849903309
-
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# بدء تشغيل التذكيرات
+# بدء التذكيرات
 reminders.start_reminders(bot)
 
-# ✅ دالة عرض القائمة الرئيسية
+# ✅ عرض القائمة الرئيسية
 def show_main_menu(bot, message):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -91,9 +89,9 @@ def handle_main_menu(call):
 
     elif action == "settings":
         from handlers.settings import show_settings_menu
-show_settings_menu(bot, call.message.chat.id, call.message.message_id)
+        show_settings_menu(bot, call.message.chat.id, call.message.message_id)
 
-# ✅ تسجيل كل الأوامر الفرعية
+# ✅ تسجيل باقي الأوامر
 prayers.register(bot)
 quran.register(bot)
 quran.handle_callbacks(bot)
@@ -104,7 +102,7 @@ admin.register(bot)
 hadith.register(bot)
 settings.register(bot)
 
-# ✅ تشغيل البوت مع Flask
+# ✅ تشغيل البوت و Flask
 def run_bot():
     bot.infinity_polling()
 
