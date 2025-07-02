@@ -1,96 +1,100 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.db import get_user_favs, user_col
+from utils.db import user_col
 from math import ceil
 
-def register(bot):
-    @bot.message_handler(commands=['fav'])
-    def fav_command(msg):
-        show_fav_categories(bot, msg.chat.id, msg.message_id if msg.message_id else None)
+ITEMS_PER_PAGE = 3
 
-    def show_fav_categories(bot, chat_id, message_id=None):
+def register(bot):
+    @bot.callback_query_handler(func=lambda call: call.data == "menu:fav")
+    def open_favorites_main(call):
+        show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
+
+    def show_fav_main_menu(bot, chat_id, message_id):
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
-            InlineKeyboardButton("📖 الآيات", callback_data="fav:ayah:0"),
-            InlineKeyboardButton("📜 الأحاديث", callback_data="fav:hadith:0"),
-            InlineKeyboardButton("📿 الأذكار", callback_data="fav:dhikr:0")
+            InlineKeyboardButton("📖 آيات", callback_data="fav_section:quran"),
+            InlineKeyboardButton("📜 أحاديث", callback_data="fav_section:hadith"),
+            InlineKeyboardButton("📿 أذكار", callback_data="fav_section:athkar")
         )
-        markup.add(InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
+        markup.add(InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu"))
+        bot.edit_message_text("⭐ اختر القسم الذي تريد عرضه من المفضلة:", chat_id, message_id, reply_markup=markup)
 
-        text = "⭐ اختر نوع المفضلة التي تريد عرضها:"
-        if message_id:
-            try:
-                bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
-            except:
-                bot.send_message(chat_id, text, reply_markup=markup)
-        else:
-            bot.send_message(chat_id, text, reply_markup=markup)
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_section:"))
+    def show_fav_section(call):
+        section = call.data.split(":")[1]
+        show_fav_page(bot, call.message.chat.id, call.message.message_id, section, 0)
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav:"))
-    def handle_fav_section(call):
-        _, type_, index = call.data.split(":")
-        index = int(index)
-        favs = [f for f in get_user_favs(call.from_user.id) if f["type"] == type_]
+    def show_fav_page(bot, chat_id, message_id, section, page):
+        user = user_col.find_one({"_id": chat_id})
+        if not user or "favorites" not in user:
+            return bot.edit_message_text("⭐ لا يوجد عناصر في المفضلة.", chat_id, message_id)
+
+        favs = [f for f in user["favorites"] if f.get("type") == section]
         if not favs:
-            bot.answer_callback_query(call.id, "❌ لا يوجد عناصر في هذا القسم.")
-            return show_fav_categories(bot, call.message.chat.id, call.message.message_id)
+            return bot.edit_message_text("⭐ لا يوجد عناصر في هذا القسم من المفضلة.", chat_id, message_id)
 
-        index = max(0, min(index, len(favs) - 1))
-        fav = favs[index]
+        total_pages = ceil(len(favs) / ITEMS_PER_PAGE)
+        page = max(0, min(page, total_pages - 1))
+        start = page * ITEMS_PER_PAGE
+        end = start + ITEMS_PER_PAGE
+        current_favs = favs[start:end]
 
-        text = f"⭐ <b>العنصر {index + 1} من {len(favs)}</b>\n\n{fav['content']}"
-        markup = InlineKeyboardMarkup()
+        title_map = {
+            "quran": "📖 آيات محفوظة",
+            "hadith": "📜 أحاديث محفوظة",
+            "athkar": "📿 أذكار محفوظة"
+        }
+        text = f"{title_map.get(section, '')} (صفحة {page + 1} من {total_pages})\n\n"
+        for i, fav in enumerate(current_favs, start=start):
+            text += f"*{i + 1}.* {fav['content'][:300]}\n\n"
 
-        nav_buttons = []
-        if index > 0:
-            nav_buttons.append(InlineKeyboardButton("⬅️ السابق", callback_data=f"fav:{type_}:{index - 1}"))
-        if index < len(favs) - 1:
-            nav_buttons.append(InlineKeyboardButton("➡️ التالي", callback_data=f"fav:{type_}:{index + 1}"))
-        if nav_buttons:
-            markup.row(*nav_buttons)
+        markup = InlineKeyboardMarkup(row_width=3)
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton("⏮️ السابق", callback_data=f"fav_page:{section}:{page - 1}"))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton("⏭️ التالي", callback_data=f"fav_page:{section}:{page + 1}"))
+        if nav:
+            markup.row(*nav)
 
+        markup.add(InlineKeyboardButton("🗑️ حذف عنصر", callback_data=f"fav_delete_menu:{section}:{page}"))
         markup.add(
-            InlineKeyboardButton("🗑️ حذف", callback_data=f"favdel:{type_}:{index}"),
-            InlineKeyboardButton("🔙 الرجوع إلى الأقسام", callback_data="fav:back"),
-            InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="back_to_main")
+            InlineKeyboardButton("🔙 الرجوع للأقسام", callback_data="menu:fav"),
+            InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu")
         )
 
-        bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="HTML")
+        bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
 
-    @bot.callback_query_handler(func=lambda call: call.data == "fav:back")
-    def back_to_categories(call):
-        show_fav_categories(bot, call.message.chat.id, call.message.message_id)
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_page:"))
+    def change_page(call):
+        _, section, page = call.data.split(":")
+        show_fav_page(bot, call.message.chat.id, call.message.message_id, section, int(page))
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("favdel:"))
-    def delete_favorite(call):
-        _, type_, index = call.data.split(":")
-        index = int(index)
-        user = user_col.find_one({"_id": call.from_user.id})
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_delete_menu:"))
+    def delete_menu(call):
+        _, section, page = call.data.split(":")
+        page = int(page)
+        user = user_col.find_one({"_id": call.message.chat.id})
         if not user or "favorites" not in user:
             return
+        favs = [f for f in user["favorites"] if f.get("type") == section]
+        start = page * ITEMS_PER_PAGE
+        end = start + ITEMS_PER_PAGE
+        current_favs = favs[start:end]
 
-        # احسب موقع العنصر داخل المصفوفة الأصلية
-        full_list = user["favorites"]
-        filtered = [f for f in full_list if f["type"] == type_]
+        markup = InlineKeyboardMarkup(row_width=1)
+        for i, fav in enumerate(current_favs, start=start):
+            label = fav["content"][:40].replace("\n", " ")
+            markup.add(InlineKeyboardButton(f"❌ حذف: {label}", callback_data=f"fav_delete:{section}:{i}:{page}"))
 
-        if index >= len(filtered):
-            bot.answer_callback_query(call.id, "❌ العنصر غير موجود.")
-            return
+        markup.add(InlineKeyboardButton("⬅️ رجوع", callback_data=f"fav_page:{section}:{page}"))
+        bot.edit_message_text("🗑️ اختر العنصر الذي تريد حذفه:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-        target_item = filtered[index]
-        try:
-            real_index = full_list.index(target_item)
-        except ValueError:
-            bot.answer_callback_query(call.id, "❌ خطأ أثناء الحذف.")
-            return
-
-        # احذف العنصر الحقيقي
-        user_col.update_one({"_id": call.from_user.id}, {"$unset": {f"favorites.{real_index}": 1}})
-        user_col.update_one({"_id": call.from_user.id}, {"$pull": {"favorites": None}})
-
-        bot.answer_callback_query(call.id, "✅ تم حذف العنصر من المفضلة.")
-        show_fav_categories(bot, call.message.chat.id, call.message.message_id)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "back_to_main")
-    def back_to_main(call):
-        from main import show_main_menu
-        show_main_menu(bot, call.message)
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_delete:"))
+    def delete_favorite(call):
+        _, section, index, page = call.data.split(":")
+        index = int(index)
+        user_col.update_one({"_id": call.message.chat.id}, {"$unset": {f"favorites.{index}": 1}})
+        user_col.update_one({"_id": call.message.chat.id}, {"$pull": {"favorites": None}})
+        bot.answer_callback_query(call.id, "✅ تم الحذف من المفضلة.")
+        show_fav_page(bot, call.message.chat.id, call.message.message_id, section, int(page))
