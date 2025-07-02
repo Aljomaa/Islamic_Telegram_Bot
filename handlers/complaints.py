@@ -1,27 +1,71 @@
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto, InputMediaVideo
 from bson import ObjectId
 from utils.db import comp_col, user_col
 from config import ADMIN_ID
+from datetime import datetime
 
 def register(bot):
     @bot.message_handler(commands=['complain'])
-    def handle_complaint(msg):
-        bot.send_message(msg.chat.id, "📝 اكتب شكواك أو اقتراحك وسأقوم بإرساله للإدارة.")
-        bot.register_next_step_handler(msg, lambda m: save_complaint(bot, m))
+    def start_complaint(msg):
+        markup = InlineKeyboardMarkup()
+        markup.add(
+            InlineKeyboardButton("📩 تقديم شكوى", callback_data="start_complaint:complaint"),
+            InlineKeyboardButton("💡 تقديم اقتراح", callback_data="start_complaint:suggestion")
+        )
+        bot.send_message(msg.chat.id, "يرجى اختيار نوع الرسالة:", reply_markup=markup)
 
-    def save_complaint(bot, msg):
-        comp_col.insert_one({
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("start_complaint:"))
+    def ask_for_input(call):
+        ctype = call.data.split(":")[1]
+        bot.send_message(call.message.chat.id, f"📝 أرسل { 'شكواك' if ctype == 'complaint' else 'اقتراحك' } الآن (نص، صورة، صوت، فيديو...).")
+        bot.register_next_step_handler(call.message, lambda m: save_complaint(bot, m, ctype))
+
+    def save_complaint(bot, msg, ctype):
+        media_type = None
+        file_id = None
+
+        if msg.text:
+            content = msg.text
+            media_type = 'text'
+        elif msg.photo:
+            content = msg.caption or ""
+            media_type = 'photo'
+            file_id = msg.photo[-1].file_id
+        elif msg.voice:
+            content = msg.caption or ""
+            media_type = 'voice'
+            file_id = msg.voice.file_id
+        elif msg.video:
+            content = msg.caption or ""
+            media_type = 'video'
+            file_id = msg.video.file_id
+        elif msg.sticker:
+            content = ""
+            media_type = 'sticker'
+            file_id = msg.sticker.file_id
+        else:
+            bot.send_message(msg.chat.id, "❌ لم يتم التعرف على نوع الرسالة.")
+            return
+
+        data = {
             "user_id": msg.from_user.id,
             "username": msg.from_user.username or "غير معروف",
-            "text": msg.text,
-            "status": "open"
-        })
-        bot.send_message(msg.chat.id, "✅ تم إرسال الشكوى بنجاح. شكرًا لك!")
+            "full_name": msg.from_user.full_name or "غير معروف",
+            "text": content,
+            "media_type": media_type,
+            "file_id": file_id,
+            "status": "open",
+            "type": ctype,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+
+        comp_col.insert_one(data)
+        bot.send_message(msg.chat.id, "✅ تم إرسال الرسالة بنجاح. شكرًا لك!")
 
         # إخطار المشرف
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("👁️ عرض الشكاوى", callback_data="view_complaints"))
-        bot.send_message(ADMIN_ID, f"📩 شكوى جديدة من @{msg.from_user.username or msg.from_user.id}", reply_markup=markup)
+        bot.send_message(ADMIN_ID, f"📩 { 'شكوى' if ctype == 'complaint' else 'اقتراح' } جديدة من @{data['username']}", reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data == "view_complaints")
     def view_complaints(call):
@@ -34,11 +78,31 @@ def register(bot):
             return
 
         for comp in complaints:
-            text = f"👤 المستخدم: @{comp['username']}\n🆔 ID: {comp['user_id']}\n\n📝 {comp['text']}"
+            text = f"👤 الاسم: {comp['full_name']}\n"
+            text += f"🆔 ID: {comp['user_id']}\n"
+            text += f"🔗 المستخدم: @{comp['username']}\n"
+            text += f"🕓 الوقت: {comp['timestamp']}\n"
+            text += f"📌 النوع: {'شكوى' if comp['type'] == 'complaint' else 'اقتراح'}\n\n"
+            text += f"📝 المحتوى:\n{comp['text']}" if comp['text'] else ""
+
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("✉️ الرد", callback_data=f"reply_comp:{str(comp['_id'])}"))
-            markup.add(InlineKeyboardButton("✅ تم الحل", callback_data=f"resolve_comp:{str(comp['_id'])}"))
-            bot.send_message(call.message.chat.id, text, reply_markup=markup)
+            markup.add(
+                InlineKeyboardButton("✉️ الرد", callback_data=f"reply_comp:{str(comp['_id'])}"),
+                InlineKeyboardButton("✅ تم الحل", callback_data=f"resolve_comp:{str(comp['_id'])}")
+            )
+
+            if comp['media_type'] == "photo":
+                bot.send_photo(call.message.chat.id, comp['file_id'], caption=text, reply_markup=markup)
+            elif comp['media_type'] == "video":
+                bot.send_video(call.message.chat.id, comp['file_id'], caption=text, reply_markup=markup)
+            elif comp['media_type'] == "voice":
+                bot.send_voice(call.message.chat.id, comp['file_id'])
+                bot.send_message(call.message.chat.id, text, reply_markup=markup)
+            elif comp['media_type'] == "sticker":
+                bot.send_sticker(call.message.chat.id, comp['file_id'])
+                bot.send_message(call.message.chat.id, text, reply_markup=markup)
+            else:
+                bot.send_message(call.message.chat.id, text, reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_comp:"))
     def ask_reply(call):
@@ -59,7 +123,7 @@ def register(bot):
             return
 
         try:
-            bot.send_message(comp["user_id"], f"📩 رد الإدارة على شكواك:\n\n{msg.text}")
+            bot.send_message(comp["user_id"], f"📩 رد الإدارة على {'الشكوى' if comp['type'] == 'complaint' else 'الاقتراح'}:\n\n{msg.text}")
             bot.send_message(msg.chat.id, "✅ تم إرسال الرد للمستخدم.")
         except:
             bot.send_message(msg.chat.id, "⚠️ تعذر إرسال الرسالة للمستخدم.")
