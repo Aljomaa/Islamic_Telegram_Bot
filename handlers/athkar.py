@@ -14,13 +14,16 @@ ATHKAR_CATEGORIES = {
 
 athkar_cache = {}
 
+def show_athkar_menu(bot, message):
+    markup = InlineKeyboardMarkup(row_width=2)
+    for cat in ATHKAR_CATEGORIES:
+        markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar_cat:{cat}"))
+    bot.send_message(message.chat.id, "📿 اختر نوع الأذكار:", reply_markup=markup)
+
 def register(bot):
     @bot.message_handler(commands=['athkar', 'أذكار'])
-    def show_athkar_menu(msg):
-        markup = InlineKeyboardMarkup(row_width=2)
-        for cat in ATHKAR_CATEGORIES:
-            markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar_cat:{cat}"))
-        bot.send_message(msg.chat.id, "📿 اختر نوع الأذكار:", reply_markup=markup)
+    def handle_menu_command(msg):
+        show_athkar_menu(bot, msg)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("athkar_cat:"))
     def handle_category(call):
@@ -64,7 +67,7 @@ def register(bot):
 
     @bot.callback_query_handler(func=lambda call: call.data == "athkar_main")
     def return_to_main(call):
-        show_athkar_menu(call.message)
+        show_athkar_menu(bot, call.message)
 
 def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=False):
     try:
@@ -98,7 +101,7 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
         # أزرار المفضلة والعودة
         markup.row(
             InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}"),
-            InlineKeyboardButton("🏠 الرئيسية", callback_data="athkar_main")
+            InlineKeyboardButton("🔙 العودة للقائمة", callback_data="athkar_main")
         )
 
         if edit and message_id:
