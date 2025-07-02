@@ -2,6 +2,7 @@ import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
 import logging
+from utils.menu import show_main_menu  # ✅ لإرجاع المستخدم للقائمة الرئيسية بدون circular import
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,16 +15,21 @@ ATHKAR_CATEGORIES = {
 
 athkar_cache = {}
 
-def show_athkar_menu(bot, message):
+def show_athkar_menu(bot, chat_id, message_id=None):
     markup = InlineKeyboardMarkup(row_width=2)
     for cat in ATHKAR_CATEGORIES:
         markup.add(InlineKeyboardButton(f"📿 {cat}", callback_data=f"athkar_cat:{cat}"))
-    bot.send_message(message.chat.id, "📿 اختر نوع الأذكار:", reply_markup=markup)
+    markup.add(InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="main_menu"))
+
+    try:
+        bot.edit_message_text("📿 اختر نوع الأذكار:", chat_id, message_id, reply_markup=markup)
+    except:
+        bot.send_message(chat_id, "📿 اختر نوع الأذكار:", reply_markup=markup)
 
 def register(bot):
     @bot.message_handler(commands=['athkar', 'أذكار'])
     def handle_menu_command(msg):
-        show_athkar_menu(bot, msg)
+        show_athkar_menu(bot, msg.chat.id)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("athkar_cat:"))
     def handle_category(call):
@@ -40,13 +46,13 @@ def register(bot):
                 athkar_list = athkar_cache[category]
 
             if not athkar_list:
-                bot.send_message(call.message.chat.id, "❌ لا توجد أذكار متاحة.")
+                bot.edit_message_text("❌ لا توجد أذكار متاحة.", call.message.chat.id, call.message.message_id)
                 return
 
             send_athkar_by_index(bot, call.message.chat.id, category, 0, call.message.message_id, edit=True)
         except Exception as e:
             logger.error(f"[ERROR] تحميل الأذكار: {e}")
-            bot.send_message(call.message.chat.id, "❌ فشل تحميل الأذكار.")
+            bot.edit_message_text("❌ فشل تحميل الأذكار.", call.message.chat.id, call.message.message_id)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("athkar_nav:"))
     def navigate_athkar(call):
@@ -67,9 +73,12 @@ def register(bot):
             bot.answer_callback_query(call.id, "❌ فشل الحفظ.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "athkar_main")
-    def return_to_main(call):
-        from main import welcome  # استدعاء القائمة الرئيسية
-        welcome(call.message)
+    def return_to_athkar_main(call):
+        show_athkar_menu(bot, call.message.chat.id, call.message.message_id)
+
+    @bot.callback_query_handler(func=lambda call: call.data == "main_menu")
+    def return_to_main_menu(call):
+        show_main_menu(bot, call.message)
 
 def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=False):
     try:
@@ -101,7 +110,8 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
 
         markup.row(
             InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}"),
-            InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="athkar_main")
+            InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="athkar_main"),
+            InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu")
         )
 
         if edit and message_id:
