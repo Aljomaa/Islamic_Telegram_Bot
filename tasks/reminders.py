@@ -13,7 +13,7 @@ from utils.db import (
 API_PRAYER = "http://api.aladhan.com/v1/timings"
 ATHKAR_API = "https://raw.githubusercontent.com/hisnmuslim/hisn-muslim-api/main/ar/hisn.json"
 
-# لتجنب السبام في الصلاة
+# منع التكرار في تذكير الصلاة
 last_sent_prayer = {}
 
 def send_adhkar(bot, user_id, time_of_day):
@@ -28,7 +28,7 @@ def send_adhkar(bot, user_id, time_of_day):
         else:
             return
 
-        for item in azkar[:10]:  # أرسل أول 10 أذكار فقط
+        for item in azkar[:10]:
             text = f"📿 {item.get('zekr', '').strip()}"
             bot.send_message(user_id, text)
     except Exception as e:
@@ -51,7 +51,7 @@ def should_send_prayer_reminder(user_id, prayer_key):
     key = (user_id, prayer_key)
     last_time = last_sent_prayer.get(key)
 
-    if not last_time or (now - last_time) > timedelta(minutes=30):
+    if not last_time or (now - last_time) > timedelta(minutes=10):
         last_sent_prayer[key] = now
         return True
     return False
@@ -91,11 +91,11 @@ def send_prayer_reminders(bot):
                 prayer_time = user_tz.localize(prayer_time)
 
                 delta = (prayer_time - now_user).total_seconds() / 60
-                if 9 <= delta <= 11:
+                if 9 <= delta <= 11:  # قبل الأذان بـ10 دقائق ±1 دقيقة
                     if should_send_prayer_reminder(user_id, key):
                         bot.send_message(
                             user_id,
-                            f"🕌 اقترب موعد صلاة {name} بعد 10 دقائق، تجهز أثابك الله وهداك ونفع بك 🤲"
+                            f"🕌 تبقّى 10 دقائق على أذان صلاة {name}.\nتهيّأ وتوضأ، واذكر الله 🤲"
                         )
         except Exception as e:
             print(f"[ERROR] تذكير الصلاة للمستخدم {user_id}: {e}")
@@ -141,7 +141,7 @@ def start_reminders(bot):
                 settings = get_user_reminder_settings(uid)
                 if settings.get("prayer", True):
                     send_prayer_reminders(bot)
-            time.sleep(60)
+            time.sleep(10)  # ⏱️ فحص كل 10 ثواني لزيادة الدقة
 
     threading.Thread(target=adhkar_loop, daemon=True).start()
     threading.Thread(target=jumuah_loop, daemon=True).start()
