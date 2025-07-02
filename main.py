@@ -91,7 +91,7 @@ def handle_main_menu(call):
 
     elif action == "settings":
         from handlers.settings import show_settings_menu
-        show_settings_menu(call)
+show_settings_menu(bot, call.message.chat.id, call.message.message_id)
 
 # ✅ تسجيل كل الأوامر الفرعية
 prayers.register(bot)
