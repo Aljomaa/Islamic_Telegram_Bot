@@ -120,11 +120,12 @@ def register(bot):
 
             nav = []
             if index > 0:
-                nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"nav_hadith:{index - 1}"))
+                nav.append(InlineKeyboardButton("◀️ السابق", callback_data=f"hadith_nav:{index - 1}"))
             if index < len(session['hadiths']) - 1:
-                nav.append(InlineKeyboardButton("▶️ التالي", callback_data=f"nav_hadith:{index + 1}"))
+                nav.append(InlineKeyboardButton("▶️ التالي", callback_data=f"hadith_nav:{index + 1}"))
             if nav:
                 markup.row(*nav)
+
             markup.add(InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="hadith_back_to_books"))
             markup.add(InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
 
@@ -136,7 +137,7 @@ def register(bot):
             print(f"[ERROR] show_hadith: {e}")
             bot.send_message(chat_id, "❌ تعذر عرض الحديث.")
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("nav_hadith:"))
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith_nav:"))
     def navigate(call):
         try:
             new_index = int(call.data.split(":")[1])
