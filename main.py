@@ -68,8 +68,8 @@ def handle_main_menu(call):
         show_main_quran_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "athkar":
-        from handlers.athkar import show_athkar_menu
-        show_athkar_menu(bot, call.message)
+    from handlers.athkar import show_athkar_menu
+    show_athkar_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "hadith":
         from handlers.hadith import show_hadith_menu
