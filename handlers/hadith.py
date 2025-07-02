@@ -1,8 +1,7 @@
 import os
 import requests
-import random
 from dotenv import load_dotenv
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
 from utils.menu import show_main_menu
 
@@ -32,23 +31,23 @@ def show_hadith_menu(bot, msg):
     bot.edit_message_text("📚 اختر مصدر الحديث:", msg.chat.id, msg.message_id, reply_markup=markup)
 
 def register(bot):
-    user_sessions = {}
-
     @bot.message_handler(commands=['hadith', 'حديث'])
     def hadith_command(msg):
         show_hadith_menu(bot, msg)
 
     def fetch_hadith(slug, number):
-        url = f"{API_BASE}/hadiths/{number}"
+        url = f"{API_BASE}/hadiths"
         params = {
             "apiKey": API_KEY,
             "book": slug,
-            "language": "arabic"
+            "language": "arabic",
+            "limit": 1,
+            "page": number
         }
         res = requests.get(url, headers=HEADERS, params=params, timeout=10)
         res.raise_for_status()
         data = res.json()
-        return data.get('hadith', {})
+        return data['hadiths']['data'][0] if data.get("hadiths", {}).get("data") else {}
 
     def show_hadith(bot, chat_id, slug, number, message_id=None, edit=False):
         try:
@@ -61,18 +60,16 @@ def register(bot):
             msg_text = f"{book_name}\n\n🆔 الحديث رقم {number}\n\n{text}"
 
             markup = InlineKeyboardMarkup()
-            markup.add(
-                InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_hadith:{slug}:{number}")
-            )
+            markup.add(InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_hadith:{slug}:{number}"))
 
             nav = [
-                InlineKeyboardButton("◀️ السابق", callback_data=f"hadith_nav:{slug}:{number-1}"),
-                InlineKeyboardButton("▶️ التالي", callback_data=f"hadith_nav:{slug}:{number+1}")
+                InlineKeyboardButton("◀️ السابق", callback_data=f"hadith_nav:{slug}:{number - 1}"),
+                InlineKeyboardButton("▶️ التالي", callback_data=f"hadith_nav:{slug}:{number + 1}")
             ]
             if number > 1:
                 markup.row(*nav)
             else:
-                markup.add(nav[1])  # لا تضف السابق إذا الرقم 1
+                markup.row(nav[1])
 
             markup.add(InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="hadith_back_to_books"))
             markup.add(InlineKeyboardButton("🏠 الرجوع للقائمة الرئيسية", callback_data="back_to_main"))
