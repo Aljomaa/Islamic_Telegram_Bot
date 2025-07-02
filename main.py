@@ -1,21 +1,42 @@
 import telebot
 from config import BOT_TOKEN
-from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith
+from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings
 from tasks import reminders
 
 import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.db import register_user
+
+# المعرف الخاص بالمشرف
+ADMIN_ID = 6849903309
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # بدء تشغيل التذكيرات
 reminders.start_reminders(bot)
 
-# رسالة الترحيب وزر القائمة الرئيسية
+# ✅ دالة عرض القائمة الرئيسية
+def show_main_menu(bot, message):
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("🕌 أوقات الصلاة", callback_data="menu:prayer"),
+        InlineKeyboardButton("📖 القرآن الكريم", callback_data="menu:quran"),
+        InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
+        InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
+        InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
+        InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
+        InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
+    )
+
+    if message.chat.id == ADMIN_ID:
+        markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
+
+    bot.edit_message_text("🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", message.chat.id, message.message_id, reply_markup=markup)
+
+# ✅ أمر /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
+    from utils.db import register_user
     register_user(msg.from_user.id)
 
     markup = InlineKeyboardMarkup(row_width=2)
@@ -26,16 +47,18 @@ def welcome(msg):
         InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
-        InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin")
+        InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
     )
+
+    if msg.from_user.id == ADMIN_ID:
+        markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
 
     bot.send_message(msg.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", reply_markup=markup)
 
-# معالجة أزرار القائمة الرئيسية
+# ✅ أزرار القائمة الرئيسية
 @bot.callback_query_handler(func=lambda call: call.data.startswith("menu:"))
 def handle_main_menu(call):
-    bot.answer_callback_query(call.id)  # ✅ هذا السطر هو الحل لمشكلة الأزرار
-
+    bot.answer_callback_query(call.id)
     action = call.data.split(":")[1]
 
     if action == "prayer":
@@ -61,9 +84,16 @@ def handle_main_menu(call):
         bot.send_message(call.message.chat.id, "/complain")
 
     elif action == "admin":
-        bot.send_message(call.message.chat.id, "/admin")
+        if call.from_user.id == ADMIN_ID:
+            bot.send_message(call.message.chat.id, "/admin")
+        else:
+            bot.send_message(call.message.chat.id, "❌ هذا الخيار مخصص للمشرف فقط.")
 
-# تسجيل باقي الأوامر
+    elif action == "settings":
+        from handlers.settings import show_settings_menu
+        show_settings_menu(call)
+
+# ✅ تسجيل كل الأوامر الفرعية
 prayers.register(bot)
 quran.register(bot)
 quran.handle_callbacks(bot)
@@ -72,8 +102,9 @@ favorites.register(bot)
 complaints.register(bot)
 admin.register(bot)
 hadith.register(bot)
+settings.register(bot)
 
-# إعداد وتشغيل البوت مع خادم Flask
+# ✅ تشغيل البوت مع Flask
 def run_bot():
     bot.infinity_polling()
 
