@@ -4,7 +4,7 @@ import random
 from dotenv import load_dotenv
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ForceReply
 from utils.db import add_to_fav
-from main import show_main_menu
+from utils.menu import show_main_menu
 
 load_dotenv()
 API_KEY = os.getenv("HADITH_API_KEY")
