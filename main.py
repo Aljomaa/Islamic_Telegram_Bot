@@ -25,11 +25,15 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
     )
-
     if message.chat.id == ADMIN_ID:
         markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
 
-    bot.edit_message_text("🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", message.chat.id, message.message_id, reply_markup=markup)
+    bot.edit_message_text(
+        "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:",
+        message.chat.id,
+        message.message_id,
+        reply_markup=markup
+    )
 
 # ✅ أمر /start
 @bot.message_handler(commands=['start'])
@@ -47,17 +51,20 @@ def welcome(msg):
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
     )
-
     if msg.from_user.id == ADMIN_ID:
         markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
 
-    bot.send_message(msg.chat.id, "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", reply_markup=markup)
+    bot.send_message(
+        msg.chat.id,
+        "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:",
+        reply_markup=markup
+    )
 
-# ✅ أزرار القائمة الرئيسية
-@bot.callback_query_handler(func=lambda call: call.data.startswith("menu:"))
+# ✅ التعامل مع القائمة الرئيسية
+@bot.callback_query_handler(func=lambda call: call.data.startswith("menu:") or call.data == "back_to_main")
 def handle_main_menu(call):
     bot.answer_callback_query(call.id)
-    action = call.data.split(":")[1]
+    action = call.data.split(":")[1] if ":" in call.data else "main"
 
     if action == "prayer":
         from handlers.prayers import show_prayer_times
@@ -90,6 +97,9 @@ def handle_main_menu(call):
     elif action == "settings":
         from handlers.settings import show_settings_menu
         show_settings_menu(bot, call.message.chat.id, call.message.message_id)
+
+    elif action == "main" or call.data == "back_to_main":
+        show_main_menu(bot, call.message)
 
 # ✅ تسجيل باقي الأوامر
 prayers.register(bot)
