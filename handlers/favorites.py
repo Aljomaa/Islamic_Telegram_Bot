@@ -1,5 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.db import user_col
+from utils.db import user_col, get_user_favs
 from math import ceil
 
 ITEMS_PER_PAGE = 3
@@ -16,7 +16,7 @@ def register(bot):
             InlineKeyboardButton("📜 أحاديث", callback_data="fav_section:hadith"),
             InlineKeyboardButton("📿 أذكار", callback_data="fav_section:athkar")
         )
-        markup.add(InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu"))
+        markup.add(InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="back_to_main"))
         bot.edit_message_text("⭐ اختر القسم الذي تريد عرضه من المفضلة:", chat_id, message_id, reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_section:"))
@@ -60,7 +60,7 @@ def register(bot):
         markup.add(InlineKeyboardButton("🗑️ حذف عنصر", callback_data=f"fav_delete_menu:{section}:{page}"))
         markup.add(
             InlineKeyboardButton("🔙 الرجوع للأقسام", callback_data="menu:fav"),
-            InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu")
+            InlineKeyboardButton("🏠 الرئيسية", callback_data="back_to_main")
         )
 
         bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
