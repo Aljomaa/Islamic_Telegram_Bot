@@ -4,20 +4,20 @@ from math import ceil
 
 ITEMS_PER_PAGE = 3
 
-def show_fav_main_menu(bot, chat_id, message_id):
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("📖 آيات", callback_data="fav_section:quran"),
-        InlineKeyboardButton("📜 أحاديث", callback_data="fav_section:hadith"),
-        InlineKeyboardButton("📿 أذكار", callback_data="fav_section:athkar")
-    )
-    markup.add(InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu"))
-    bot.edit_message_text("⭐ اختر القسم الذي تريد عرضه من المفضلة:", chat_id, message_id, reply_markup=markup)
-
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data == "menu:fav")
     def open_favorites_main(call):
         show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
+
+    def show_fav_main_menu(bot, chat_id, message_id):
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("📖 آيات", callback_data="fav_section:quran"),
+            InlineKeyboardButton("📜 أحاديث", callback_data="fav_section:hadith"),
+            InlineKeyboardButton("📿 أذكار", callback_data="fav_section:athkar")
+        )
+        markup.add(InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu"))
+        bot.edit_message_text("⭐ اختر القسم الذي تريد عرضه من المفضلة:", chat_id, message_id, reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav_section:"))
     def show_fav_section(call):
@@ -29,7 +29,7 @@ def register(bot):
         if not user or "favorites" not in user:
             return bot.edit_message_text("⭐ لا يوجد عناصر في المفضلة.", chat_id, message_id)
 
-        favs = [f for f in user["favorites"] if f.get("type") == section]
+        favs = [f for f in user["favorites"] if f.get("type") == section and isinstance(f.get("content"), str)]
         if not favs:
             return bot.edit_message_text("⭐ لا يوجد عناصر في هذا القسم من المفضلة.", chat_id, message_id)
 
@@ -77,7 +77,7 @@ def register(bot):
         user = user_col.find_one({"_id": call.message.chat.id})
         if not user or "favorites" not in user:
             return
-        favs = [f for f in user["favorites"] if f.get("type") == section]
+        favs = [f for f in user["favorites"] if f.get("type") == section and isinstance(f.get("content"), str)]
         start = page * ITEMS_PER_PAGE
         end = start + ITEMS_PER_PAGE
         current_favs = favs[start:end]
