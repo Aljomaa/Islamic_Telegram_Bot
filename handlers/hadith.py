@@ -10,8 +10,14 @@ params_base = {"apiKey": HADITH_API_KEY, "language": "arabic"}
 
 def register(bot):
     @bot.message_handler(commands=['hadith'])
-    def show_hadith_menu_command(msg):
-        show_books(bot, msg)
+    # ✅ أمر /hadith
+@bot.message_handler(commands=['hadith'])
+def show_hadith_menu_command(msg):
+    show_books(bot, msg)
+
+# ✅ زر "📜 الحديث" من القائمة الرئيسية
+def show_hadith_menu(bot, msg):
+    show_books(bot, msg)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith:"))
     def handle_callback(call):
