@@ -5,16 +5,21 @@ from utils.db import add_to_fav
 from utils.menu import show_main_menu
 
 BASE_URL = "https://www.hadithapi.com/public/api"
-headers = {"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
-params_base = {"apiKey": HADITH_API_KEY, "language": "arabic"}
+
+headers = {
+    "Accept": "application/json",
+    "User-Agent": "Mozilla/5.0"
+}
+
+params_base = {
+    "apiKey": HADITH_API_KEY,
+    "language": "arabic"
+}
+
+# لتخزين أجزاء الأحاديث الطويلة
+long_hadith_parts = {}
 
 def register(bot):
-
-
-# ✅ زر "📜 الحديث" من القائمة الرئيسية
-def show_hadith_menu(bot, msg):
-    show_books(bot, msg)
-
     @bot.callback_query_handler(func=lambda call: call.data.startswith("hadith:"))
     def handle_callback(call):
         bot.answer_callback_query(call.id)
@@ -42,15 +47,33 @@ def show_hadith_menu(bot, msg):
             book_slug, page, index = data[2], int(data[3]), int(data[4])
             show_hadith_by_index(bot, call.message, book_slug, page, index)
 
-        elif action == "continue":
-            book_slug, page, index, part = data[2], int(data[3]), int(data[4]), int(data[5])
-            resend_hadith_part(bot, call.message, book_slug, page, index, part)
-
         elif action == "fav":
             user_id = call.from_user.id
             text = call.message.text
             add_to_fav(user_id, text)
             bot.answer_callback_query(call.id, "✅ تم حفظ الحديث في المفضلة")
+
+        elif action == "more":
+            book_slug, page, index, part = data[2], int(data[3]), int(data[4]), int(data[5])
+            key = f"{book_slug}:{page}:{index}"
+            parts = long_hadith_parts.get(key, [])
+            if part < len(parts):
+                text = parts[part]
+                markup = create_navigation_buttons(book_slug, page, index)
+                if part < len(parts) - 1:
+                    markup.add(InlineKeyboardButton("📖 متابعة القراءة", callback_data=f"hadith:more:{book_slug}:{page}:{index}:{part + 1}"))
+                markup.add(
+                    InlineKeyboardButton("❤️ إضافة للمفضلة", callback_data="hadith:fav"),
+                    InlineKeyboardButton("📚 الكتب", callback_data="hadith:menu"),
+                    InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu")
+                )
+                try:
+                    bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+                except:
+                    bot.send_message(call.message.chat.id, text, reply_markup=markup)
+
+def show_hadith_menu(bot, msg):
+    show_books(bot, msg)
 
 def arabic_book_name(english_name):
     names = {
@@ -79,7 +102,7 @@ def show_books(bot, msg):
                     callback_data=f"hadith:book:{book['bookSlug']}:{book['bookName']}"
                 )
             )
-        markup.add(InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="back_to_main"))
+        markup.add(InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu"))
         bot.edit_message_text("📚 اختر كتاب الحديث:", msg.chat.id, msg.message_id, reply_markup=markup)
     except Exception as e:
         bot.send_message(msg.chat.id, f"❌ خطأ: {e}")
@@ -91,10 +114,7 @@ def show_book_options(bot, msg, book_slug, book_name):
         InlineKeyboardButton("🔢 حديث برقم", callback_data=f"hadith:bynumber:{book_slug}"),
     )
     markup.add(InlineKeyboardButton("⬅️ العودة", callback_data="hadith:menu"))
-    try:
-        bot.edit_message_text("📘 اختر الطريقة:", msg.chat.id, msg.message_id, reply_markup=markup)
-    except:
-        bot.send_message(msg.chat.id, "📘 اختر الطريقة:", reply_markup=markup)
+    bot.edit_message_text("📘 اختر الطريقة:", msg.chat.id, msg.message_id, reply_markup=markup)
 
 def send_random_hadith(bot, msg, book_slug):
     try:
@@ -131,60 +151,38 @@ def show_hadith_by_index(bot, msg, book_slug, page, index):
     except Exception as e:
         bot.send_message(msg.chat.id, f"⚠️ خطأ: {e}")
 
-def send_hadith(bot, msg, hadith, book_slug, page, index):
-    full_text = f"📌 حديث رقم {hadith['id']}\n\n{hadith.get('hadithArabic', '❌ لا يوجد نص')}"
-    parts = [full_text[i:i+4000] for i in range(0, len(full_text), 4000)]
-
+def create_navigation_buttons(book_slug, page, index):
     markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page}:{index-1}") if index > 0 else
-        InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page-1}:24") if page > 1 else None,
-        InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page}:{index+1}") if index < 24 else
-        InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page+1}:0")
-    )
-    markup.add(
-        InlineKeyboardButton("❤️ إضافة للمفضلة", callback_data="hadith:fav"),
-        InlineKeyboardButton("📚 الكتب", callback_data="hadith:menu"),
-        InlineKeyboardButton("🏠 الرئيسية", callback_data="back_to_main")
-    )
+    if index > 0:
+        markup.add(InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page}:{index - 1}"))
+    elif page > 1:
+        markup.add(InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page - 1}:24"))
 
-    if len(parts) == 1:
-        try:
-            bot.edit_message_text(parts[0], msg.chat.id, msg.message_id, reply_markup=markup)
-        except:
-            bot.send_message(msg.chat.id, parts[0], reply_markup=markup)
+    if index < 24:
+        markup.add(InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page}:{index + 1}"))
     else:
-        try:
-            cont_markup = markup
-            cont_markup.add(InlineKeyboardButton("📖 متابعة القراءة", callback_data=f"hadith:continue:{book_slug}:{page}:{index}:1"))
-            bot.edit_message_text(parts[0], msg.chat.id, msg.message_id, reply_markup=cont_markup)
-        except:
-            bot.send_message(msg.chat.id, parts[0], reply_markup=cont_markup)
+        markup.add(InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page + 1}:0"))
 
-def resend_hadith_part(bot, msg, book_slug, page, index, part):
+    return markup
+
+def send_hadith(bot, msg, hadith, book_slug, page, index):
     try:
-        res = requests.get(f"{BASE_URL}/hadiths", params={**params_base, "book": book_slug, "page": page}, headers=headers)
-        hadiths = res.json().get("hadiths", {}).get("data", [])
-        hadith = hadiths[index]
         full_text = f"📌 حديث رقم {hadith['id']}\n\n{hadith.get('hadithArabic', '❌ لا يوجد نص')}"
         parts = [full_text[i:i+4000] for i in range(0, len(full_text), 4000)]
+        key = f"{book_slug}:{page}:{index}"
+        long_hadith_parts[key] = parts
 
-        markup = InlineKeyboardMarkup(row_width=2)
-        markup.add(
-            InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page}:{index-1}") if index > 0 else
-            InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page-1}:24") if page > 1 else None,
-            InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page}:{index+1}") if index < 24 else
-            InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page+1}:0")
-        )
+        markup = create_navigation_buttons(book_slug, page, index)
+
+        if len(parts) > 1:
+            markup.add(InlineKeyboardButton("📖 متابعة القراءة", callback_data=f"hadith:more:{book_slug}:{page}:{index}:1"))
+
         markup.add(
             InlineKeyboardButton("❤️ إضافة للمفضلة", callback_data="hadith:fav"),
             InlineKeyboardButton("📚 الكتب", callback_data="hadith:menu"),
-            InlineKeyboardButton("🏠 الرئيسية", callback_data="back_to_main")
+            InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu")
         )
 
-        if part + 1 < len(parts):
-            markup.add(InlineKeyboardButton("📖 متابعة القراءة", callback_data=f"hadith:continue:{book_slug}:{page}:{index}:{part+1}"))
-
-        bot.send_message(msg.chat.id, parts[part], reply_markup=markup)
+        bot.edit_message_text(parts[0], msg.chat.id, msg.message_id, reply_markup=markup)
     except Exception as e:
         bot.send_message(msg.chat.id, f"⚠️ خطأ في عرض الحديث:\n{e}")
