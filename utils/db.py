@@ -8,16 +8,14 @@ db = client["islamic_bot"]
 
 user_col = db["users"]
 comp_col = db["complaints"]
+admin_col = db["admins"]
 
-# ===============================
 # ✅ تسجيل المستخدم الجديد
-# ===============================
 def register_user(user):
     user_id = user.id if hasattr(user, 'id') else user
     if not user_col.find_one({"_id": user_id}):
         user_col.insert_one({
             "_id": user_id,
-            "favorites": [],
             "notifications_enabled": True,
             "reminder_settings": {
                 "morning_adhkar": True,
@@ -27,9 +25,7 @@ def register_user(user):
             }
         })
 
-# ===============================
 # 🕌 الموقع والتوقيت
-# ===============================
 def set_user_location(user_id, lat, lon, timezone="auto"):
     user_col.update_one(
         {"_id": user_id},
@@ -52,9 +48,7 @@ def get_user_timezone(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("timezone", "auto") if user else "auto"
 
-# ===============================
 # 🔔 الإشعارات العامة
-# ===============================
 def user_notifications_enabled(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("notifications_enabled", True) if user else True
@@ -65,9 +59,7 @@ def enable_notifications(user_id):
 def disable_notifications(user_id):
     user_col.update_one({"_id": user_id}, {"$set": {"notifications_enabled": False}})
 
-# ===============================
 # 🔁 إعدادات التذكير المخصصة
-# ===============================
 def get_user_reminder_settings(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("reminder_settings", {
@@ -84,26 +76,19 @@ def update_reminder_setting(user_id, key, value: bool):
         upsert=True
     )
 
-# ===============================
 # ⭐ نظام المفضلة
-# ===============================
 def add_to_fav(user_id, type_, content):
-    if not content or not isinstance(content, str):
-        return False
     user_col.update_one(
         {"_id": user_id},
         {"$push": {"favorites": {"type": type_, "content": content}}},
         upsert=True
     )
-    return True
 
 def get_user_favs(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("favorites", []) if user else []
 
-# ===============================
 # 🎧 القارئ المفضل
-# ===============================
 def get_user_reciter(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("reciter") if user else None
@@ -115,9 +100,7 @@ def set_user_reciter(user_id, reciter):
         upsert=True
     )
 
-# ===============================
-# 🧾 الشكاوى والاقتراحات (جديد)
-# ===============================
+# 🧾 الشكاوى والاقتراحات
 def add_complaint(msg, type_):
     media_type = None
     file_id = None
@@ -186,9 +169,7 @@ def reply_to_complaint(comp_id, reply_text, bot=None):
     except:
         return False
 
-# ===============================
-# 📊 الإحصائيات
-# ===============================
+# 📊 إحصائيات البوت
 def get_bot_stats():
     total_favorites_agg = list(user_col.aggregate([
         {"$project": {"count": {"$size": {"$ifNull": ["$favorites", []]}}}},
@@ -202,9 +183,7 @@ def get_bot_stats():
         "total_complaints": comp_col.count_documents({})
     }
 
-# ===============================
 # 📢 الرسائل الجماعية
-# ===============================
 def get_all_user_ids():
     return [doc["_id"] for doc in user_col.find({}, {"_id": 1})]
 
@@ -214,3 +193,39 @@ def broadcast_message(bot, message_text):
             bot.send_message(user_id, message_text)
         except:
             continue
+
+# 👤 نظام المشرفين (Admins)
+def is_admin(user_id_or_username):
+    query = {"$or": [{"_id": user_id_or_username}, {"username": str(user_id_or_username)}]}
+    admin = admin_col.find_one(query)
+    return bool(admin)
+
+def add_admin(identifier):
+    try:
+        if identifier.isdigit():
+            _id = int(identifier)
+            username = None
+        else:
+            _id = identifier
+            username = identifier
+
+        if admin_col.find_one({"_id": _id}):
+            return False
+
+        admin_col.insert_one({
+            "_id": _id,
+            "username": username
+        })
+        return True
+    except:
+        return False
+
+def remove_admin(identifier):
+    try:
+        result = admin_col.delete_one({"$or": [{"_id": identifier}, {"username": identifier}]})
+        return result.deleted_count > 0
+    except:
+        return False
+
+def get_admins():
+    return list(admin_col.find({}))
