@@ -53,7 +53,7 @@ def register(bot):
         elif action == "fav":
             user_id = call.from_user.id
             text = call.message.text
-            add_to_fav(user_id, text)
+            add_to_fav(user_id, "hadith", text)
             bot.answer_callback_query(call.id, "✅ تم حفظ الحديث في المفضلة")
 
         elif action == "more":
