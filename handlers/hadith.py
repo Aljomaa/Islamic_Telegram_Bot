@@ -1,5 +1,4 @@
 import requests
-import random
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import HADITH_API_KEY
 from utils.db import add_to_fav
@@ -32,43 +31,28 @@ def register(bot):
             show_books(bot, call.message)
 
         elif action == "book":
-            slug = data[2]
-            show_book_options(bot, call.message, slug)
+            book_slug = data[2]
+            book_name = data[3]
+            show_book_options(bot, call.message, book_slug, book_name)
 
         elif action == "random":
-            slug = data[2]
-            send_random_hadith(bot, call.message, slug)
+            book_slug = data[2]
+            send_random_hadith(bot, call.message, book_slug)
 
         elif action == "bynumber":
-            slug = data[2]
+            book_slug = data[2]
             msg = bot.send_message(call.message.chat.id, "📃 أدخل رقم الحديث:")
-            bot.register_next_step_handler(msg, lambda m: send_hadith_by_number(bot, m, slug))
+            bot.register_next_step_handler(msg, lambda m: send_hadith_by_number(bot, m, book_slug))
+
+        elif action == "page":
+            book_slug, page, index = data[2], int(data[3]), int(data[4])
+            show_hadith_by_index(bot, call.message, book_slug, page, index)
 
         elif action == "fav":
-            text = call.message.text
             user_id = call.from_user.id
+            text = call.message.text
             add_to_fav(user_id, text)
-            bot.answer_callback_query(call.id, "✔️ تم حفظ الحديث في المفضلة")
-
-        elif action == "nav":
-            slug = data[2]
-            page = int(data[3])
-            index = int(data[4])
-            send_hadith_by_index(bot, call.message, slug, page, index)
-
-def show_books(bot, msg):
-    try:
-        res = requests.get(f"{BASE_URL}/books", params=params_base, headers=headers)
-        books = res.json().get("books", [])
-        markup = InlineKeyboardMarkup(row_width=2)
-        for book in books:
-            name_ar = arabic_book_name(book['bookName'])
-            slug = book['bookSlug']
-            markup.add(InlineKeyboardButton(f"📘 {name_ar}", callback_data=f"hadith:book:{slug}"))
-        markup.add(InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main:menu"))
-        bot.edit_message_text("📚 اختر كتاب الحديث:", msg.chat.id, msg.message_id, reply_markup=markup)
-    except:
-        bot.edit_message_text("⚠️ خطأ في جلب الكتب.", msg.chat.id, msg.message_id)
+            bot.answer_callback_query(call.id, "✅ تم حفظ الحديث في المفضلة")
 
 def arabic_book_name(english_name):
     names = {
@@ -80,74 +64,97 @@ def arabic_book_name(english_name):
         "Sunan An-Nasa`i": "سنن النسائي",
         "Mishkat Al-Masabih": "مشكاة المصابيح",
         "Musnad Ahmad": "مسند أحمد",
-        "Al-Silsila Sahiha": "السلسلة الصحيحة",
+        "Al-Silsila Sahiha": "السلسلة الصحيحة"
     }
     return names.get(english_name, english_name)
 
-def show_book_options(bot, msg, slug):
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("🎲 حديث عشوائي", callback_data=f"hadith:random:{slug}"),
-        InlineKeyboardButton("📓 حديث برقم", callback_data=f"hadith:bynumber:{slug}")
-    )
-    markup.add(
-        InlineKeyboardButton("⬅️ العودة", callback_data="hadith:menu"),
-        InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main:menu")
-    )
-    bot.edit_message_text("ماذا تريد فعله بهذا الكتاب؟", msg.chat.id, msg.message_id, reply_markup=markup)
-
-def send_random_hadith(bot, msg, slug):
+def show_books(bot, msg):
     try:
-        res = requests.get(f"{BASE_URL}/hadiths", params={**params_base, "book": slug, "page": 1}, headers=headers)
-        hadiths = res.json().get("hadiths", {}).get("data", [])
-        if hadiths:
-            hadith = random.choice(hadiths)
-            index = hadiths.index(hadith)
-            send_hadith(bot, msg, slug, 1, index, hadith)
-        else:
-            bot.edit_message_text("❌ لا توجد أحاديث في هذا الكتاب.", msg.chat.id, msg.message_id)
-    except:
-        bot.edit_message_text("⚠️ حدث خطأ أثناء جلب الحديث.", msg.chat.id, msg.message_id)
+        res = requests.get(f"{BASE_URL}/books", params=params_base, headers=headers)
+        books = res.json().get("books", [])
+        markup = InlineKeyboardMarkup(row_width=2)
+        for book in books:
+            name_ar = arabic_book_name(book['bookName'])
+            markup.add(
+                InlineKeyboardButton(
+                    f"📘 {name_ar}", 
+                    callback_data=f"hadith:book:{book['bookSlug']}:{book['bookName']}"
+                )
+            )
+        markup.add(InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main_menu"))
+        bot.edit_message_text("📚 اختر كتاب الحديث:", msg.chat.id, msg.message_id, reply_markup=markup)
+    except Exception as e:
+        bot.send_message(msg.chat.id, f"❌ خطأ: {e}")
 
-def send_hadith_by_number(bot, msg, slug):
+def show_book_options(bot, msg, book_slug, book_name):
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("🎲 حديث عشوائي", callback_data=f"hadith:random:{book_slug}"),
+        InlineKeyboardButton("🔢 حديث برقم", callback_data=f"hadith:bynumber:{book_slug}"),
+    )
+    markup.add(InlineKeyboardButton("⬅️ العودة", callback_data="hadith:menu"))
+    bot.edit_message_text("📘 اختر الطريقة:", msg.chat.id, msg.message_id, reply_markup=markup)
+
+def send_random_hadith(bot, msg, book_slug):
+    try:
+        res = requests.get(f"{BASE_URL}/hadiths", params={**params_base, "book": book_slug, "page": 1}, headers=headers)
+        hadiths = res.json().get("hadiths", {}).get("data", [])
+        if not hadiths:
+            bot.edit_message_text("❌ لا توجد أحاديث في هذا الكتاب.", msg.chat.id, msg.message_id)
+            return
+        import random
+        hadith = random.choice(hadiths)
+        send_hadith(bot, msg, hadith, book_slug, page=1, index=hadiths.index(hadith))
+    except Exception as e:
+        bot.edit_message_text(f"⚠️ خطأ: {e}", msg.chat.id, msg.message_id)
+
+def send_hadith_by_number(bot, msg, book_slug):
     try:
         number = int(msg.text.strip())
         page = (number - 1) // 25 + 1
         index = (number - 1) % 25
-        send_hadith_by_index(bot, msg, slug, page, index)
-    except:
-        bot.send_message(msg.chat.id, "⚠️ رقم الحديث غير صالح.")
+        show_hadith_by_index(bot, msg, book_slug, page, index)
+    except Exception as e:
+        bot.send_message(msg.chat.id, f"⚠️ خطأ: {e}")
 
-def send_hadith_by_index(bot, msg, slug, page, index):
+def show_hadith_by_index(bot, msg, book_slug, page, index):
     try:
-        res = requests.get(f"{BASE_URL}/hadiths", params={**params_base, "book": slug, "page": page}, headers=headers)
-        hadiths = res.json().get("hadiths", {}).get("data", [])
-        if index < len(hadiths):
-            hadith = hadiths[index]
-            send_hadith(bot, msg, slug, page, index, hadith)
-        else:
-            bot.edit_message_text("❌ لا توجد أحاديث في هذه الصفحة.", msg.chat.id, msg.message_id)
-    except:
-        bot.edit_message_text("⚠️ فشل في تحميل الحديث.", msg.chat.id, msg.message_id)
+        res = requests.get(f"{BASE_URL}/hadiths", params={**params_base, "book": book_slug, "page": page}, headers=headers)
+        data = res.json().get("hadiths", {})
+        hadiths = data.get("data", [])
+        if index >= len(hadiths):
+            bot.send_message(msg.chat.id, "❌ لا يوجد حديث بهذا الرقم.")
+            return
+        hadith = hadiths[index]
+        send_hadith(bot, msg, hadith, book_slug, page, index)
+    except Exception as e:
+        bot.send_message(msg.chat.id, f"⚠️ خطأ: {e}")
 
-def send_hadith(bot, msg, slug, page, index, hadith):
-    text = f"📖 *حديث رقم {hadith['id']}*
-
-{hadith['hadithArabic']}"
+def send_hadith(bot, msg, hadith, book_slug, page, index):
+    text = f"📌 حديث رقم {hadith['id']}\n\n{hadith.get('hadithArabic', '❌ لا يوجد نص')}"
     markup = InlineKeyboardMarkup(row_width=2)
+
+    prev_index = index - 1
+    next_index = index + 1
+
+    if prev_index >= 0:
+        markup.add(InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page}:{prev_index}"))
+    else:
+        if page > 1:
+            markup.add(InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:page:{book_slug}:{page - 1}:24"))
+
+    if next_index < 25:
+        markup.add(InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page}:{next_index}"))
+    else:
+        markup.add(InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page + 1}:0"))
+
     markup.add(
-        InlineKeyboardButton("⬅️ السابق", callback_data=f"hadith:nav:{slug}:{page}:{max(0, index - 1)}"),
-        InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:nav:{slug}:{page}:{index + 1}")
+        InlineKeyboardButton("❤️ إضافة للمفضلة", callback_data="hadith:fav"),
+        InlineKeyboardButton("📚 الكتب", callback_data="hadith:menu"),
+        InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu")
     )
-    markup.add(
-        InlineKeyboardButton("📌 إضافة للمفضلة", callback_data="hadith:fav")
-    )
-    markup.add(
-        InlineKeyboardButton("⬅️ العودة", callback_data="hadith:menu"),
-        InlineKeyboardButton("🏠 القائمة الرئيسية", callback_data="main:menu")
-    )
+
     try:
-        bot.edit_message_text(text, msg.chat.id, msg.message_id, reply_markup=markup, parse_mode="Markdown")
+        bot.edit_message_text(text, msg.chat.id, msg.message_id, reply_markup=markup)
     except:
-        bot.send_message(msg.chat.id, text, reply_markup=markup, parse_mode="Markdown")
-            
+        bot.send_message(msg.chat.id, text, reply_markup=markup)
