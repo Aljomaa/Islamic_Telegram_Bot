@@ -53,7 +53,7 @@ def register(bot):
         elif action == "fav":
             user_id = call.from_user.id
             text = call.message.text
-            add_to_fav(user_id, "hadith", text)
+            add_to_fav(user_id, text)
             bot.answer_callback_query(call.id, "✅ تم حفظ الحديث في المفضلة")
 
         elif action == "more":
@@ -162,7 +162,7 @@ def send_hadith(bot, msg, hadith, book_slug, page, index):
         markup.add(InlineKeyboardButton("➡️ التالي", callback_data=f"hadith:page:{book_slug}:{page + 1}:0"))
 
     markup.add(
-        InlineKeyboardButton("❤️ إضافة للمفضلة", callback_data="hadith:fav"),
+        InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data="hadith:fav"),
         InlineKeyboardButton("📚 الكتب", callback_data="hadith:menu"),
         InlineKeyboardButton("🏠 العودة إلى الرئيسية", callback_data="back_to_main")
     )
@@ -184,4 +184,4 @@ def send_hadith(bot, msg, hadith, book_slug, page, index):
 
 def show_hadith_menu(bot, message):
     show_books(bot, message)
-    
+        
