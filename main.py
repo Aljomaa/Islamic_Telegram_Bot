@@ -38,6 +38,8 @@ def show_main_menu(bot, message):
 # ✅ أمر /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
+    print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")  # ✅ فحص استقبال الأمر
+
     from utils.db import register_user
     register_user(msg.from_user.id)
 
