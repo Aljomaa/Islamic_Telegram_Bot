@@ -17,6 +17,7 @@ def register_user(user):
     if not user_col.find_one({"_id": user_id}):
         user_col.insert_one({
             "_id": user_id,
+            "favorites": [],
             "notifications_enabled": True,
             "reminder_settings": {
                 "morning_adhkar": True,
@@ -87,11 +88,14 @@ def update_reminder_setting(user_id, key, value: bool):
 # ⭐ نظام المفضلة
 # ===============================
 def add_to_fav(user_id, type_, content):
+    if not content or not isinstance(content, str):
+        return False
     user_col.update_one(
         {"_id": user_id},
         {"$push": {"favorites": {"type": type_, "content": content}}},
         upsert=True
     )
+    return True
 
 def get_user_favs(user_id):
     user = user_col.find_one({"_id": user_id})
