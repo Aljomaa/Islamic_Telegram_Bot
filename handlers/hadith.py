@@ -158,3 +158,6 @@ def send_hadith(bot, msg, hadith, book_slug, page, index):
     except:
         bot.send_message(msg.chat.id, text, reply_markup=markup)
     
+def show_hadith_menu(bot, message):
+    show_books(bot, message)
+    
