@@ -69,11 +69,18 @@ def register(bot):
             _, category, index = call.data.split(":")
             index = int(index)
             item = athkar_cache[category][index]
-            content = {
-                "type": "athkar",
-                "content": item.get("zekr", "")
-            }
-            add_to_fav(call.from_user.id, "athkar", content)
+
+            text = item.get("zekr", "").strip()
+            count = item.get("repeat", "")
+            reference = item.get("reference", "") or item.get("bless", "")
+
+            final = text
+            if count:
+                final += f"\n\n📌 التكرار: {count}"
+            if reference:
+                final += f"\n📖 المرجع: {reference}"
+
+            add_to_fav(call.from_user.id, "athkar", final)
             bot.answer_callback_query(call.id, "✅ تم حفظ الذكر في المفضلة.")
         except Exception as e:
             logger.error(f"[ERROR] حفظ المفضلة: {e}")
