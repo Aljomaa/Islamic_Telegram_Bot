@@ -51,10 +51,13 @@ def register(bot):
             show_hadith_by_index(bot, call.message, book_slug, page, index)
 
         elif action == "fav":
-            user_id = call.from_user.id
-            text = call.message.text
-            add_to_fav(user_id, "hadith", text)
-            bot.answer_callback_query(call.id, "✅ تم حفظ الحديث في المفضلة")
+    user_id = call.from_user.id
+    text = call.message.text or call.message.caption or ""
+    if text:
+        add_to_fav(user_id, "hadith", text)
+        bot.answer_callback_query(call.id, "✅ تم حفظ الحديث في المفضلة")
+    else:
+        bot.answer_callback_query(call.id, "❌ لا يمكن حفظ هذا الحديث")
 
         elif action == "more":
             key = f"{call.message.chat.id}:{call.message.message_id}"
