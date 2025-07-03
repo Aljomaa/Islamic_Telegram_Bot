@@ -131,7 +131,7 @@ def register(bot):
             if verse:
                 content = f"سورة {data['name']} - آية {ayah_num}:\n\n{verse['text']}"
                 add_to_fav(call.from_user.id, "ayah", content)
-                bot.answer_callback_query(call.id, "✅ تمت الإضافة إلى المفضلة")
+                bot.answer_callback_query(call.id, "✅ تم حفظ الآية في المفضلة.")
             else:
                 bot.answer_callback_query(call.id, "❌ لم يتم العثور على الآية")
         except:
