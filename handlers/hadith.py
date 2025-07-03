@@ -169,3 +169,7 @@ def send_hadith(bot, msg, hadith, book_slug, page, index, full=False):
         bot.edit_message_text(text_to_send, msg.chat.id, msg.message_id, reply_markup=markup)
     except:
         bot.send_message(msg.chat.id, text_to_send, reply_markup=markup)
+
+def show_hadith_menu(bot, msg):
+    show_books(bot, msg)
+    
