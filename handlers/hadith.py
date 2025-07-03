@@ -9,9 +9,6 @@ headers = {"Accept": "application/json", "User-Agent": "Mozilla/5.0"}
 params_base = {"apiKey": HADITH_API_KEY, "language": "arabic"}
 
 def register(bot):
-    @bot.message_handler(commands=['hadith'])
-    # ✅ أمر /hadith
-@bot.message_handler(commands=['hadith'])
 
 
 # ✅ زر "📜 الحديث" من القائمة الرئيسية
