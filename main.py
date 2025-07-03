@@ -20,7 +20,7 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("🕌 أوقات الصلاة", callback_data="menu:prayer"),
         InlineKeyboardButton("📖 القرآن الكريم", callback_data="menu:quran"),
         InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
-        InlineKeyboardButton("📜 الحديث", callback_data="hadith:menu"),
+        InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
