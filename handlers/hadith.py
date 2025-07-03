@@ -12,8 +12,7 @@ def register(bot):
     @bot.message_handler(commands=['hadith'])
     # ✅ أمر /hadith
 @bot.message_handler(commands=['hadith'])
-def show_hadith_menu_command(msg):
-    show_books(bot, msg)
+
 
 # ✅ زر "📜 الحديث" من القائمة الرئيسية
 def show_hadith_menu(bot, msg):
