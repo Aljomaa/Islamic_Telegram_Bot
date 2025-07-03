@@ -17,6 +17,12 @@ def show_fav_main_menu(bot, chat_id, message_id):
 
 # ✅ تسجيل الأحداث
 def register(bot):
+    section_to_type = {
+        "quran": "ayah",
+        "hadith": "hadith",
+        "athkar": "athkar"
+    }
+
     @bot.callback_query_handler(func=lambda call: call.data == "menu:fav")
     def open_favorites_main(call):
         show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
@@ -31,7 +37,9 @@ def register(bot):
         if not user or "favorites" not in user:
             return bot.edit_message_text("⭐ لا يوجد عناصر في المفضلة.", chat_id, message_id)
 
-        favs = [f for f in user["favorites"] if f.get("type") == section and isinstance(f.get("content"), str)]
+        actual_type = section_to_type.get(section)
+        favs = [f for f in user["favorites"] if f.get("type") == actual_type and isinstance(f.get("content"), str)]
+
         if not favs:
             return bot.edit_message_text("⭐ لا يوجد عناصر في هذا القسم من المفضلة.", chat_id, message_id)
 
@@ -79,7 +87,8 @@ def register(bot):
         user = user_col.find_one({"_id": call.message.chat.id})
         if not user or "favorites" not in user:
             return
-        favs = [f for f in user["favorites"] if f.get("type") == section and isinstance(f.get("content"), str)]
+        actual_type = section_to_type.get(section)
+        favs = [f for f in user["favorites"] if f.get("type") == actual_type and isinstance(f.get("content"), str)]
         start = page * ITEMS_PER_PAGE
         end = start + ITEMS_PER_PAGE
         current_favs = favs[start:end]
