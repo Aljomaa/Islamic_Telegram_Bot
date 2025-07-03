@@ -133,4 +133,4 @@ def send_hadith(bot, msg, hadith):
         bot.edit_message_text(text, msg.chat.id, msg.message_id, reply_markup=markup)
     except:
         bot.send_message(msg.chat.id, text, reply_markup=markup)
-        
+            
