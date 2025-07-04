@@ -2,12 +2,12 @@ import telebot
 from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings
 from tasks import reminders
+from utils.db import is_admin  # ✅ ضروري للتحقق من المشرفين
 
 import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-ADMIN_ID = 6849903309
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ✅ بدء التذكيرات
@@ -25,7 +25,7 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
     )
-    if message.chat.id == ADMIN_ID:
+    if is_admin(message.chat.id):
         markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
 
     bot.edit_message_text(
@@ -38,7 +38,7 @@ def show_main_menu(bot, message):
 # ✅ أمر /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
-    print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")  # ✅ فحص استقبال الأمر
+    print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")
 
     from utils.db import register_user
     register_user(msg.from_user.id)
@@ -53,7 +53,7 @@ def welcome(msg):
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
     )
-    if msg.from_user.id == ADMIN_ID:
+    if is_admin(msg.from_user.id):
         markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
 
     bot.send_message(
@@ -93,8 +93,9 @@ def handle_main_menu(call):
         show_complaint_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "admin":
-        if call.from_user.id == ADMIN_ID:
-            bot.send_message(call.message.chat.id, "/admin")
+        if is_admin(call.from_user.id):
+            from handlers.admin import show_admin_menu
+            show_admin_menu(bot, call.message.chat.id, call.message.message_id)
         else:
             bot.send_message(call.message.chat.id, "❌ هذا الخيار مخصص للمشرف فقط.")
 
