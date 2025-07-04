@@ -74,7 +74,11 @@ def register(bot):
             count = item.get("repeat", "")
             reference = item.get("reference", "") or item.get("bless", "")
 
-            final = text
+            if not text:
+                bot.answer_callback_query(call.id, "❌ لا يمكن حفظ ذكر فارغ.")
+                return
+
+            final = f"{text}"
             if count:
                 final += f"\n\n📌 التكرار: {count}"
             if reference:
@@ -113,7 +117,6 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
             final_text += f"\n📖 المرجع: {reference}"
 
         markup = InlineKeyboardMarkup()
-
         nav_buttons = []
         if index > 0:
             nav_buttons.append(InlineKeyboardButton("◀️ السابق", callback_data=f"athkar_nav:{category}:{index - 1}"))
@@ -122,9 +125,7 @@ def send_athkar_by_index(bot, chat_id, category, index, message_id=None, edit=Fa
         if nav_buttons:
             markup.row(*nav_buttons)
 
-        markup.row(
-            InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}")
-        )
+        markup.row(InlineKeyboardButton("⭐ إضافة للمفضلة", callback_data=f"fav_athkar:{category}:{index}"))
         markup.row(
             InlineKeyboardButton("🔙 الرجوع للقائمة السابقة", callback_data="athkar_main"),
             InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu")
