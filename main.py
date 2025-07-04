@@ -2,18 +2,13 @@ import telebot
 from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings
 from tasks import reminders
-from utils.db import is_admin, add_admin  # ✅ ضروري للتحقق من المشرفين
+from utils.db import is_admin, add_admin, register_user  # ✅ ضروري
 
 import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# ✅ تسجيل صاحب البوت كمشرف (مرة واحدة فقط)
-OWNER_ID = 6849903309
-if not is_admin(OWNER_ID):
-    add_admin(OWNER_ID)
 
 # ✅ بدء التذكيرات
 reminders.start_reminders(bot)
@@ -44,8 +39,6 @@ def show_main_menu(bot, message):
 @bot.message_handler(commands=['start'])
 def welcome(msg):
     print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")
-
-    from utils.db import register_user
     register_user(msg.from_user.id)
 
     markup = InlineKeyboardMarkup(row_width=2)
@@ -132,6 +125,16 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
+# ✅ تسجيل صاحب البوت كمشرف مرة واحدة فقط عند التشغيل
 if __name__ == '__main__':
+    OWNER_ID = 6849903309
+    if not is_admin(OWNER_ID):
+        if add_admin(OWNER_ID):
+            print("✅ تمت إضافة مالك البوت كمشرف.")
+        else:
+            print("⚠️ فشل في إضافة المشرف.")
+    else:
+        print("ℹ️ مالك البوت هو بالفعل مشرف.")
+
     threading.Thread(target=run_bot).start()
     app.run(host="0.0.0.0", port=10000)
