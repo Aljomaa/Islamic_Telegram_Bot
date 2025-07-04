@@ -11,7 +11,7 @@ from utils.db import (
 )
 
 API_PRAYER = "http://api.aladhan.com/v1/timings"
-ATHKAR_API = "https://raw.githubusercontent.com/hisnmuslim/hisn-muslim-api/main/ar/hisn.json"
+ATHKAR_API = "https://ahegazy.github.io/muslimKit/json/"
 
 last_sent_prayer = {}
 last_sent_adhkar = {}
@@ -19,12 +19,18 @@ last_sent_adhkar = {}
 # ✅ إرسال أذكار الصباح أو المساء
 def send_adhkar(bot, user_id, time_of_day):
     try:
-        response = requests.get(ATHKAR_API, timeout=10)
+        endpoint = "azkar_sabah.json" if time_of_day == "morning" else "azkar_massa.json"
+        response = requests.get(f"{ATHKAR_API}{endpoint}", timeout=10)
         data = response.json()
-        azkar = data.get("أذكار الصباح" if time_of_day == "morning" else "أذكار المساء", [])
-        for item in azkar[:10]:
-            text = f"📿 {item.get('zekr', '').strip()}"
-            bot.send_message(user_id, text)
+        azkar = data.get("content", [])[:10]
+
+        message = f"📿 أذكار {'الصباح' if time_of_day == 'morning' else 'المساء'}:\n" + "-"*50 + "\n"
+        for i, item in enumerate(azkar, 1):
+            text = item.get("zekr", "").strip()
+            repeat = item.get("repeat", "غير مذكور")
+            message += f"{i}. 📖 {text}\n🔁 التكرار: {repeat}\n\n"
+
+        bot.send_message(user_id, message)
     except Exception as e:
         print(f"[ERROR] إرسال أذكار {time_of_day} للمستخدم {user_id}: {e}")
 
@@ -32,8 +38,8 @@ def send_adhkar(bot, user_id, time_of_day):
 def send_jumuah_reminder(bot, user_id):
     try:
         bot.send_message(user_id,
-            "📿 جمعة مباركة!\n\n"
-            "📖 لا تنس قراءة سورة الكهف اليوم.\n"
+            "🌙 جمعة مباركة!\n\n"
+            "📖 لا تنسَ قراءة *سورة الكهف* اليوم.\n"
             "💌 وأكثر من الصلاة على النبي ﷺ.\n\n"
             "اللهم صلِّ وسلم على نبينا محمد"
         )
@@ -60,7 +66,7 @@ def should_send_adhkar(user_id, label):
         return True
     return False
 
-# ✅ تذكير الصلاة + أذكار ما بعد الفجر والعشاء
+# ✅ تذكير الصلاة + أذكار بعد الفجر والعشاء
 def send_prayer_reminders(bot):
     now_utc = datetime.utcnow()
     for user_id in get_all_user_ids():
@@ -92,13 +98,15 @@ def send_prayer_reminders(bot):
                 )
                 prayer_time = user_tz.localize(prayer_time, is_dst=None)
 
-                # 🔔 التذكير قبل 10 دقائق (مرونة +6/-2 دقائق)
+                # ⏰ التذكير قبل الصلاة بـ10 دقائق (مرونة ±6 دقائق)
                 remind_time = prayer_time - timedelta(minutes=10)
                 minutes_to_reminder = (remind_time - now_user).total_seconds() / 60
                 if -2 <= minutes_to_reminder <= 6 and should_send(user_id, key):
                     bot.send_message(
                         user_id,
-                        f"🕌 تبقّى 10 دقائق على أذان {name}.\nتهيّأ للصلاة وكن من الذاكرين 🤲"
+                        f"🕌 {name}\n"
+                        "لم يتبقَّ الكثير على الأذان والصلاة ⏳ فلا تنساها ولا تتغافل عنها ✨\n"
+                        "اللهم اجعلنا من المحافظين عليها 🤲"
                     )
 
                 # 🕯️ أذكار بعد الفجر أو العشاء بين 28–32 دقيقة
