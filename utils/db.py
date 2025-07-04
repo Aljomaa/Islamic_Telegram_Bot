@@ -13,17 +13,27 @@ admin_col = db["admins"]
 # ✅ تسجيل المستخدم الجديد
 def register_user(user):
     user_id = user.id if hasattr(user, 'id') else user
-    if not user_col.find_one({"_id": user_id}):
-        user_col.insert_one({
-            "_id": user_id,
-            "notifications_enabled": True,
-            "reminder_settings": {
-                "morning_adhkar": True,
-                "evening_adhkar": True,
-                "jumuah": True,
-                "prayer": True
+    full_name = user.full_name if hasattr(user, 'full_name') else "غير معروف"
+    username = user.username if hasattr(user, 'username') else None
+
+    user_col.update_one(
+        {"_id": user_id},
+        {
+            "$set": {
+                "full_name": full_name,
+                "username": username,
+                "notifications_enabled": True,
+                "reminder_settings": {
+                    "morning_adhkar": True,
+                    "evening_adhkar": True,
+                    "jumuah": True,
+                    "prayer": True
+                },
+                "joined": datetime.utcnow()
             }
-        })
+        },
+        upsert=True
+    )
 
 # 🕌 الموقع والتوقيت
 def set_user_location(user_id, lat, lon, timezone="auto"):
@@ -194,7 +204,7 @@ def broadcast_message(bot, message_text):
         except:
             continue
 
-# 👤 نظام المشرفين (Admins)
+# 👤 نظام المشرفين
 def is_admin(user_id_or_username):
     try:
         query = {
@@ -216,11 +226,9 @@ def add_admin(identifier):
             _id = identifier
             username = identifier
 
-        # ✅ تأكد أن المستخدم موجود في users
         if not user_col.find_one({"_id": _id}):
             return False
 
-        # ✅ تحقق إذا كان بالفعل مشرف
         if admin_col.find_one({"$or": [{"_id": _id}, {"username": username}]}):
             return False
 
