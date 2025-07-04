@@ -12,6 +12,7 @@ def show_complaint_menu(bot, chat_id, message_id):
     )
     bot.edit_message_text("📝 يرجى اختيار نوع الرسالة:", chat_id, message_id, reply_markup=markup)
 
+
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("start_complaint:"))
     def ask_for_input(call):
@@ -124,6 +125,67 @@ def register(bot):
         bot.send_message(complaint["user_id"], f"📬 رد جديد على {'شكواك' if complaint['type'] == 'complaint' else 'اقتراحك'}:\n\n{reply_obj['text']}")
         bot.send_message(msg.chat.id, "✅ تم إرسال الرد للمستخدم.")
 
-# ✅ تصحيح التوافق مع main.py
+
+# ✅ أمر /complaints
 def handle_callbacks(bot):
-    pass
+    @bot.message_handler(commands=["complaints"])
+    def handle_complaints(msg):
+        if not is_admin(msg.from_user.id):
+            bot.send_message(msg.chat.id, "❌ هذا الأمر مخصص للمشرفين فقط.")
+            return
+
+        complaints = list(comp_col.find({"status": "open"}).sort("_id", -1))
+        if not complaints:
+            bot.send_message(msg.chat.id, "📭 لا توجد شكاوى حالية.")
+            return
+
+        send_complaint(bot, msg.chat.id, complaints, 0)
+
+    def send_complaint(bot, chat_id, complaints, index):
+        c = complaints[index]
+        text = f"📌 [{index+1}/{len(complaints)}] {'شكوى' if c['type']=='complaint' else 'اقتراح'}\n"
+        text += f"👤 {c['full_name']} (@{c['username']})\n"
+        text += f"🕒 {c['timestamp']}\n"
+        text += f"📎 المحتوى:\n{c['text'] or '—'}"
+
+        markup = InlineKeyboardMarkup()
+        row = []
+        if index > 0:
+            row.append(InlineKeyboardButton("⏮️ السابق", callback_data=f"admin_prev:{index - 1}"))
+        if index < len(complaints) - 1:
+            row.append(InlineKeyboardButton("⏭️ التالي", callback_data=f"admin_next:{index + 1}"))
+        if row:
+            markup.row(*row)
+        markup.row(
+            InlineKeyboardButton("💬 رد", callback_data=f"reply:{str(c['_id'])}"),
+            InlineKeyboardButton("✅ إغلاق", callback_data=f"close:{str(c['_id'])}")
+        )
+        markup.row(InlineKeyboardButton("⬅️ رجوع", callback_data="menu:admin"))
+
+        if c["media_type"] == "photo":
+            bot.send_photo(chat_id, c["file_id"], caption=text, reply_markup=markup)
+        elif c["media_type"] == "video":
+            bot.send_video(chat_id, c["file_id"], caption=text, reply_markup=markup)
+        elif c["media_type"] == "voice":
+            bot.send_voice(chat_id, c["file_id"], caption=text, reply_markup=markup)
+        elif c["media_type"] == "sticker":
+            bot.send_sticker(chat_id, c["file_id"])
+            bot.send_message(chat_id, text, reply_markup=markup)
+        else:
+            bot.send_message(chat_id, text, reply_markup=markup)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("admin_next:") or call.data.startswith("admin_prev:"))
+    def navigate_complaints(call):
+        index = int(call.data.split(":")[1])
+        complaints = list(comp_col.find({"status": "open"}).sort("_id", -1))
+        bot.answer_callback_query(call.id)
+        send_complaint(bot, call.message.chat.id, complaints, index)
+
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("close:"))
+    def close_complaint(call):
+        if not is_admin(call.from_user.id):
+            return
+        cid = call.data.split(":")[1]
+        comp_col.update_one({"_id": ObjectId(cid)}, {"$set": {"status": "closed"}})
+        bot.answer_callback_query(call.id, "✅ تم إغلاق الشكوى.")
+        bot.edit_message_text("✅ تم إغلاق هذه الشكوى.", call.message.chat.id, call.message.message_id)
