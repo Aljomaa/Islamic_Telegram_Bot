@@ -2,26 +2,27 @@ from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import ADMIN_ID
 from utils.db import (
     get_bot_stats,
-    get_complaints,
     reply_to_complaint,
     get_all_user_ids,
     is_admin,
     add_admin,
     remove_admin,
-    get_admins
+    get_admins,
+    get_complaints
 )
+import os
+import sys
 
 def show_admin_menu(bot, chat_id, message_id=None):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton("📊 إحصائيات البوت", callback_data="admin_stats"),
-        InlineKeyboardButton("📬 الشكاوى والاقتراحات", callback_data="admin_complaints"),
         InlineKeyboardButton("📢 رسالة جماعية", callback_data="admin_broadcast"),
         InlineKeyboardButton("➕ إضافة مشرف", callback_data="admin_add"),
         InlineKeyboardButton("➖ إزالة مشرف", callback_data="admin_remove"),
         InlineKeyboardButton("♻️ إعادة تشغيل", callback_data="admin_restart"),
         InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="admin_stop"),
-        InlineKeyboardButton("▶️ تشغيل البوت", callback_data="admin_start"),
+        InlineKeyboardButton("▶️ تشغيل البوت", callback_data="admin_start")
     )
     markup.add(InlineKeyboardButton("🏠 العودة إلى الرئيسية", callback_data="main_menu"))
 
@@ -55,23 +56,7 @@ def register(bot):
         markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 العودة", callback_data="menu:admin"))
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-    @bot.callback_query_handler(func=lambda call: call.data == "admin_complaints")
-    def show_complaints(call):
-        if not is_admin(call.from_user.id): return
-        complaints = get_complaints()
-        if not complaints:
-            bot.edit_message_text("✅ لا توجد شكاوى حالياً.", call.message.chat.id, call.message.message_id,
-                                  reply_markup=InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 العودة", callback_data="menu:admin")))
-            return
-        for comp in complaints:
-            text = (
-                f"🆔 {comp['user_id']}\n"
-                f"👤 {comp.get('full_name', 'غير معروف')} (@{comp.get('username', 'غير معروف')})\n\n"
-                f"📝 {comp['text']}"
-            )
-            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("✉️ رد", callback_data=f"reply_to:{comp['_id']}"))
-            bot.send_message(call.message.chat.id, text, reply_markup=markup)
-
+    # ✅ دعم الرد على الشكاوى (متاح من مكان آخر، لا حاجة لزر مخصص هنا)
     @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_to:"))
     def ask_reply(call):
         if not is_admin(call.from_user.id): return
@@ -123,14 +108,16 @@ def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data == "admin_restart")
     def restart_bot(call):
         if not is_admin(call.from_user.id): return
-        bot.answer_callback_query(call.id, "♻️ تمت إعادة تشغيل البوت (وهمياً)")
+        bot.send_message(call.message.chat.id, "♻️ يتم الآن إعادة تشغيل البوت...")
+        os.execv(sys.executable, ['python'] + sys.argv)
 
     @bot.callback_query_handler(func=lambda call: call.data == "admin_stop")
     def stop_bot(call):
         if not is_admin(call.from_user.id): return
-        bot.answer_callback_query(call.id, "⏹️ تم إيقاف البوت مؤقتاً (وهمياً)")
+        bot.send_message(call.message.chat.id, "⏹️ تم إيقاف البوت.")
+        os._exit(0)
 
     @bot.callback_query_handler(func=lambda call: call.data == "admin_start")
     def start_bot(call):
         if not is_admin(call.from_user.id): return
-        bot.answer_callback_query(call.id, "▶️ تم تشغيل البوت (وهمياً)")
+        bot.send_message(call.message.chat.id, "✅ البوت يعمل حالياً بالفعل.")
