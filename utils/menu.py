@@ -1,5 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from config import ADMIN_ID
+from config import OWNER_ID
 
 def show_main_menu(bot, message):
     markup = InlineKeyboardMarkup(row_width=2)
@@ -12,7 +12,12 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
     )
-    if message.chat.id == ADMIN_ID:
+    if message.chat.id == OWNER_ID:
         markup.add(InlineKeyboardButton("🧑‍💼 المشرف", callback_data="menu:admin"))
 
-    bot.edit_message_text("🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:", message.chat.id, message.message_id, reply_markup=markup)
+    bot.edit_message_text(
+        "🌙 مرحبًا بك في البوت الإسلامي!\nاختر أحد الخيارات:",
+        message.chat.id,
+        message.message_id,
+        reply_markup=markup
+    )
