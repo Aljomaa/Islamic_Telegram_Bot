@@ -3,6 +3,7 @@ from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings
 from tasks import reminders
 from utils.db import is_admin, add_admin, register_user  # ✅ ضروري
+from config import OWNER_ID
 
 import threading
 from flask import Flask
@@ -39,7 +40,7 @@ def show_main_menu(bot, message):
 @bot.message_handler(commands=['start'])
 def welcome(msg):
     print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")
-    register_user(msg.from_user.id)
+    register_user(msg.from_user)
 
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -111,7 +112,7 @@ quran.handle_callbacks(bot)
 athkar.register(bot)
 favorites.register(bot)
 complaints.register(bot)
-complaints.register(bot)
+complaints.handle_callbacks(bot)
 admin.register(bot)
 hadith.register(bot)
 settings.register(bot)
@@ -128,8 +129,8 @@ def home():
 
 # ✅ تسجيل صاحب البوت كمشرف مرة واحدة فقط عند التشغيل
 if __name__ == '__main__':
-    OWNER_ID = 6849903309
     if not is_admin(OWNER_ID):
+        print('🔐 إضافة المالك كمشرف...')
         if add_admin(OWNER_ID):
             print("✅ تمت إضافة مالك البوت كمشرف.")
         else:
