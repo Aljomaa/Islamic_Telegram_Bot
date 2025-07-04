@@ -2,13 +2,16 @@ import telebot
 from config import BOT_TOKEN
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings
 from tasks import reminders
-from utils.db import is_admin  # ✅ ضروري للتحقق من المشرفين
+from utils.db import is_admin, add_admin  # ✅ أضفنا add_admin
 
 import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# ✅ تسجيل نفسك كمشرف (مرة واحدة فقط)
+add_admin(683362872)  # ← هذا هو ID تبعك
 
 # ✅ بدء التذكيرات
 reminders.start_reminders(bot)
