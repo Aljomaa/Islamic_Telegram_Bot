@@ -66,7 +66,6 @@ def register(bot):
                 f"📬 {'شكوى' if ctype == 'complaint' else 'اقتراح'} جديدة من @{data['username']}\n👁️ استخدم /complaints لعرضها."
             )
 
-    # ✅ عرض شكاوي المستخدم مع الردود
     @bot.callback_query_handler(func=lambda call: call.data.startswith("view_my_complaints:"))
     def view_my_complaints(call):
         bot.answer_callback_query(call.id)
@@ -102,7 +101,6 @@ def register(bot):
         markup.row(InlineKeyboardButton("⬅️ رجوع", callback_data="menu:complain"))
         bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-    # ✅ عند رد المشرف، يتم تخزين الرد وإعلام المستخدم
     @bot.callback_query_handler(func=lambda call: call.data.startswith("reply:"))
     def start_admin_reply(call):
         if not is_admin(call.from_user.id):
@@ -125,3 +123,7 @@ def register(bot):
         comp_col.update_one({"_id": ObjectId(cid)}, {"$push": {"replies": reply_obj}})
         bot.send_message(complaint["user_id"], f"📬 رد جديد على {'شكواك' if complaint['type'] == 'complaint' else 'اقتراحك'}:\n\n{reply_obj['text']}")
         bot.send_message(msg.chat.id, "✅ تم إرسال الرد للمستخدم.")
+
+# ✅ تصحيح التوافق مع main.py
+def handle_callbacks(bot):
+    pass
