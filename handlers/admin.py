@@ -2,13 +2,13 @@ from telebot.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import ADMIN_ID
 from utils.db import (
     get_bot_stats,
-    reply_to_complaint,
     get_all_user_ids,
     is_admin,
     add_admin,
     remove_admin,
     get_admins,
-    get_complaints
+    get_complaints,
+    user_col
 )
 import os
 import sys
@@ -20,9 +20,7 @@ def show_admin_menu(bot, chat_id, message_id=None):
         InlineKeyboardButton("📢 رسالة جماعية", callback_data="admin_broadcast"),
         InlineKeyboardButton("➕ إضافة مشرف", callback_data="admin_add"),
         InlineKeyboardButton("➖ إزالة مشرف", callback_data="admin_remove"),
-        InlineKeyboardButton("♻️ إعادة تشغيل", callback_data="admin_restart"),
-        InlineKeyboardButton("⏹️ إيقاف البوت", callback_data="admin_stop"),
-        InlineKeyboardButton("▶️ تشغيل البوت", callback_data="admin_start")
+        InlineKeyboardButton("👥 قائمة المشرفين", callback_data="admin_list")
     )
     markup.add(InlineKeyboardButton("🏠 العودة إلى الرئيسية", callback_data="main_menu"))
 
@@ -56,68 +54,81 @@ def register(bot):
         markup = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 العودة", callback_data="menu:admin"))
         bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-    # ✅ دعم الرد على الشكاوى (متاح من مكان آخر، لا حاجة لزر مخصص هنا)
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("reply_to:"))
-    def ask_reply(call):
+    @bot.callback_query_handler(func=lambda call: call.data == "admin_list")
+    def show_admin_list(call):
         if not is_admin(call.from_user.id): return
-        complaint_id = call.data.split(":")[1]
-        msg = bot.send_message(call.message.chat.id, "✉️ أرسل ردك الآن:")
-        bot.register_next_step_handler(msg, lambda m: process_reply(bot, m, complaint_id))
+        admins = get_admins()
+        if not admins:
+            msg = "❌ لا يوجد مشرفون حالياً."
+        else:
+            msg = "👥 قائمة المشرفين:\n\n"
+            for a in admins:
+                uid = a.get("_id")
+                uname = a.get("username")
+                line = f"• @{uname}" if uname else f"• `{uid}`"
+                msg += line + "\n"
 
-    def process_reply(bot, msg: Message, complaint_id):
-        if not is_admin(msg.from_user.id): return
-        success = reply_to_complaint(complaint_id, msg.text, bot)
-        bot.send_message(msg.chat.id, "✅ تم إرسال الرد." if success else "❌ فشل في إرسال الرد.")
-
-    @bot.callback_query_handler(func=lambda call: call.data == "admin_broadcast")
-    def ask_broadcast(call):
-        if not is_admin(call.from_user.id): return
-        msg = bot.send_message(call.message.chat.id, "📢 أرسل الرسالة الآن ليتم إرسالها لجميع المستخدمين:")
-        bot.register_next_step_handler(msg, lambda m: process_broadcast(bot, m))
-
-    def process_broadcast(bot, msg: Message):
-        if not is_admin(msg.from_user.id): return
-        from utils.db import broadcast_message
-        broadcast_message(bot, msg.text)
-        bot.send_message(msg.chat.id, "✅ تم إرسال الرسالة بنجاح.")
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("🔙 العودة", callback_data="menu:admin"))
+        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=markup, parse_mode="Markdown")
 
     @bot.callback_query_handler(func=lambda call: call.data == "admin_add")
-    def ask_add_admin(call):
+    def ask_for_admin_input(call):
         if not is_admin(call.from_user.id): return
-        msg = bot.send_message(call.message.chat.id, "🆔 أرسل رقم أو معرف المستخدم لإضافته كمشرف:")
-        bot.register_next_step_handler(msg, process_add_admin)
+        msg = bot.send_message(call.message.chat.id, "🆔 أرسل الآن رقم ID أو @username للمستخدم الذي تريد إضافته كمشرف:")
+        bot.register_next_step_handler(msg, process_admin_add)
 
-    def process_add_admin(msg: Message):
-        if not is_admin(msg.from_user.id): return
-        identifier = msg.text.strip().lstrip("@")
-        success = add_admin(identifier)
-        bot.send_message(msg.chat.id, "✅ تم إضافة المشرف." if success else "❌ لم يتم العثور على المستخدم أو المشرف موجود.")
+    def process_admin_add(msg):
+        text = msg.text.strip()
+        user_doc = None
+
+        if text.isdigit():
+            uid = int(text)
+            user_doc = user_col.find_one({"_id": uid})
+        elif text.startswith("@"):
+            username = text[1:].lower()
+            user_doc = user_col.find_one({"username": {"$regex": f"^{username}$", "$options": "i"}})
+        else:
+            bot.send_message(msg.chat.id, "❌ يرجى إدخال رقم ID أو @username صالح فقط.")
+            return
+
+        if not user_doc:
+            bot.send_message(msg.chat.id, "❌ هذا المستخدم غير موجود في البوت أو لم يضغط /start بعد.")
+            return
+
+        add_admin(user_doc["_id"])
+        display = f"@{user_doc.get('username')}" if user_doc.get("username") else user_doc["_id"]
+        bot.send_message(msg.chat.id, f"✅ تم إضافة {display} كمشرف بنجاح.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "admin_remove")
-    def ask_remove_admin(call):
-        if not is_admin(call.from_user.id): return
-        msg = bot.send_message(call.message.chat.id, "🆔 أرسل رقم أو معرف المشرف المراد حذفه:")
-        bot.register_next_step_handler(msg, process_remove_admin)
+    def handle_remove_admin(call):
+        if call.from_user.id != ADMIN_ID:
+            bot.answer_callback_query(call.id, "❌ هذا الخيار متاح فقط للمشرف الأساسي.", show_alert=True)
+            return
 
-    def process_remove_admin(msg: Message):
-        if not is_admin(msg.from_user.id): return
-        identifier = msg.text.strip().lstrip("@")
-        success = remove_admin(identifier)
-        bot.send_message(msg.chat.id, "✅ تم إزالة المشرف." if success else "❌ لم يتم العثور على هذا المشرف.")
+        admins = get_admins()
+        if not admins or len(admins) <= 1:
+            bot.edit_message_text("⚠️ لا يوجد مشرفين آخرين لإزالتهم.", call.message.chat.id, call.message.message_id)
+            return
 
-    @bot.callback_query_handler(func=lambda call: call.data == "admin_restart")
-    def restart_bot(call):
-        if not is_admin(call.from_user.id): return
-        bot.send_message(call.message.chat.id, "♻️ يتم الآن إعادة تشغيل البوت...")
-        os.execv(sys.executable, ['python'] + sys.argv)
+        markup = InlineKeyboardMarkup()
+        for a in admins:
+            uid = a["_id"]
+            if uid == ADMIN_ID:
+                continue
+            uname = a.get("username")
+            label = f"@{uname}" if uname else str(uid)
+            markup.add(InlineKeyboardButton(f"❌ إزالة {label}", callback_data=f"remove_admin:{uid}"))
+        markup.add(InlineKeyboardButton("🔙 العودة", callback_data="menu:admin"))
 
-    @bot.callback_query_handler(func=lambda call: call.data == "admin_stop")
-    def stop_bot(call):
-        if not is_admin(call.from_user.id): return
-        bot.send_message(call.message.chat.id, "⏹️ تم إيقاف البوت.")
-        os._exit(0)
+        bot.edit_message_text("👥 اختر المشرف الذي تريد إزالته:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-    @bot.callback_query_handler(func=lambda call: call.data == "admin_start")
-    def start_bot(call):
-        if not is_admin(call.from_user.id): return
-        bot.send_message(call.message.chat.id, "✅ البوت يعمل حالياً بالفعل.")
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("remove_admin:"))
+    def confirm_remove_admin(call):
+        if call.from_user.id != ADMIN_ID:
+            bot.answer_callback_query(call.id, "❌ هذا الخيار متاح فقط للمشرف الأساسي.", show_alert=True)
+            return
+
+        uid = int(call.data.split(":")[1])
+        remove_admin(uid)
+        bot.edit_message_text(f"✅ تم إزالة المشرف: `{uid}` بنجاح.", call.message.chat.id, call.message.message_id, parse_mode="Markdown")
