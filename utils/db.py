@@ -196,9 +196,16 @@ def broadcast_message(bot, message_text):
 
 # 👤 نظام المشرفين (Admins)
 def is_admin(user_id_or_username):
-    query = {"$or": [{"_id": user_id_or_username}, {"username": str(user_id_or_username)}]}
-    admin = admin_col.find_one(query)
-    return bool(admin)
+    try:
+        query = {
+            "$or": [
+                {"_id": int(user_id_or_username)} if str(user_id_or_username).isdigit() else {"_id": user_id_or_username},
+                {"username": str(user_id_or_username)}
+            ]
+        }
+        return admin_col.find_one(query) is not None
+    except:
+        return False
 
 def add_admin(identifier):
     try:
@@ -209,7 +216,7 @@ def add_admin(identifier):
             _id = identifier
             username = identifier
 
-        if admin_col.find_one({"_id": _id}):
+        if admin_col.find_one({"$or": [{"_id": _id}, {"username": username}]}):
             return False
 
         admin_col.insert_one({
@@ -222,7 +229,11 @@ def add_admin(identifier):
 
 def remove_admin(identifier):
     try:
-        result = admin_col.delete_one({"$or": [{"_id": identifier}, {"username": identifier}]})
+        if identifier.isdigit():
+            _id = int(identifier)
+            result = admin_col.delete_one({"_id": _id})
+        else:
+            result = admin_col.delete_one({"username": identifier})
         return result.deleted_count > 0
     except:
         return False
