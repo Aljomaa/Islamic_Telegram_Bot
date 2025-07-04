@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from config import MONGO_URI
+from config import MONGO_URI, OWNER_ID
 from bson import ObjectId
 from datetime import datetime
 
@@ -204,41 +204,39 @@ def broadcast_message(bot, message_text):
         except:
             continue
 
-# 👤 نظام المشرفين والمالك
-from config import OWNER_ID
-
+# 👤 نظام المشرفين
 def is_admin(user_id_or_username):
     try:
+        if str(user_id_or_username) == str(OWNER_ID):
+            return True
         query = {
             "$or": [
                 {"_id": int(user_id_or_username)} if str(user_id_or_username).isdigit() else {"_id": user_id_or_username},
                 {"username": str(user_id_or_username)}
             ]
         }
-        if str(user_id_or_username) == str(OWNER_ID):
-            return True
         return admin_col.find_one(query) is not None
     except:
         return False
 
 def add_admin(identifier):
     try:
+        user_doc = None
         if identifier.isdigit():
-            _id = int(identifier)
-            username = None
+            identifier = int(identifier)
+            user_doc = user_col.find_one({"_id": identifier})
         else:
-            _id = identifier
-            username = identifier
+            user_doc = user_col.find_one({"username": identifier})
 
-        if not user_col.find_one({"_id": _id}):
+        if not user_doc:
             return False
 
-        if admin_col.find_one({"$or": [{"_id": _id}, {"username": username}]}):
+        if admin_col.find_one({"_id": user_doc["_id"]}):
             return False
 
         admin_col.insert_one({
-            "_id": _id,
-            "username": username
+            "_id": user_doc["_id"],
+            "username": user_doc.get("username")
         })
         return True
     except:
@@ -246,6 +244,8 @@ def add_admin(identifier):
 
 def remove_admin(identifier):
     try:
+        if str(identifier) == str(OWNER_ID):
+            return False
         if identifier.isdigit():
             _id = int(identifier)
             result = admin_col.delete_one({"_id": _id})
