@@ -69,7 +69,7 @@ def enable_notifications(user_id):
 def disable_notifications(user_id):
     user_col.update_one({"_id": user_id}, {"$set": {"notifications_enabled": False}})
 
-# 🔁 إعدادات التذكير المخصصة
+# 🔁 إعدادات التذكير
 def get_user_reminder_settings(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("reminder_settings", {
@@ -86,7 +86,7 @@ def update_reminder_setting(user_id, key, value: bool):
         upsert=True
     )
 
-# ⭐ نظام المفضلة
+# ⭐ المفضلة
 def add_to_fav(user_id, type_, content):
     user_col.update_one(
         {"_id": user_id},
@@ -179,7 +179,7 @@ def reply_to_complaint(comp_id, reply_text, bot=None):
     except:
         return False
 
-# 📊 إحصائيات البوت
+# 📊 الإحصائيات
 def get_bot_stats():
     total_favorites_agg = list(user_col.aggregate([
         {"$project": {"count": {"$size": {"$ifNull": ["$favorites", []]}}}},
@@ -193,7 +193,7 @@ def get_bot_stats():
         "total_complaints": comp_col.count_documents({})
     }
 
-# 📢 الرسائل الجماعية
+# 📢 رسالة جماعية
 def get_all_user_ids():
     return [doc["_id"] for doc in user_col.find({}, {"_id": 1})]
 
@@ -204,7 +204,9 @@ def broadcast_message(bot, message_text):
         except:
             continue
 
-# 👤 نظام المشرفين
+# 👤 نظام المشرفين والمالك
+from config import OWNER_ID
+
 def is_admin(user_id_or_username):
     try:
         query = {
@@ -213,6 +215,8 @@ def is_admin(user_id_or_username):
                 {"username": str(user_id_or_username)}
             ]
         }
+        if str(user_id_or_username) == str(OWNER_ID):
+            return True
         return admin_col.find_one(query) is not None
     except:
         return False
