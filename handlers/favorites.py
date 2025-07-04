@@ -4,7 +4,6 @@ from math import ceil
 
 ITEMS_PER_PAGE = 3
 
-# ✅ هذه متاحة للاستدعاء من main.py
 def show_fav_main_menu(bot, chat_id, message_id):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -15,7 +14,6 @@ def show_fav_main_menu(bot, chat_id, message_id):
     markup.add(InlineKeyboardButton("🏠 الرجوع للرئيسية", callback_data="main_menu"))
     bot.edit_message_text("⭐ اختر القسم الذي تريد عرضه من المفضلة:", chat_id, message_id, reply_markup=markup)
 
-# ✅ تسجيل الأحداث
 def register(bot):
     section_to_type = {
         "quran": "ayah",
@@ -38,7 +36,7 @@ def register(bot):
             return bot.edit_message_text("⭐ لا يوجد عناصر في المفضلة.", chat_id, message_id)
 
         actual_type = section_to_type.get(section)
-        favs = [f for f in user["favorites"] if f.get("type") == actual_type and isinstance(f.get("content"), str)]
+        favs = [f for f in user["favorites"] if isinstance(f, dict) and f.get("type") == actual_type and isinstance(f.get("content"), str)]
 
         if not favs:
             return bot.edit_message_text("⭐ لا يوجد عناصر في هذا القسم من المفضلة.", chat_id, message_id)
@@ -88,7 +86,7 @@ def register(bot):
         if not user or "favorites" not in user:
             return
         actual_type = section_to_type.get(section)
-        favs = [f for f in user["favorites"] if f.get("type") == actual_type and isinstance(f.get("content"), str)]
+        favs = [f for f in user["favorites"] if isinstance(f, dict) and f.get("type") == actual_type and isinstance(f.get("content"), str)]
         start = page * ITEMS_PER_PAGE
         end = start + ITEMS_PER_PAGE
         current_favs = favs[start:end]
