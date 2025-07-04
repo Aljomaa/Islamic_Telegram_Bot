@@ -11,7 +11,7 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ✅ تسجيل نفسك كمشرف (مرة واحدة فقط)
-add_admin(683362872)  # ← هذا هو ID تبعك
+add_admin(6849903309)  # ← هذا هو ID تبعك
 
 # ✅ بدء التذكيرات
 reminders.start_reminders(bot)
