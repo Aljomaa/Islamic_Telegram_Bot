@@ -1,5 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from utils.db import is_admin, add_admin, remove_admin, get_bot_stats, get_admins
+from utils.db import is_admin, add_admin, remove_admin, get_bot_stats, get_admins, get_all_user_ids
 from config import OWNER_ID
 
 def register(bot):
@@ -58,6 +58,14 @@ def register(bot):
             else:
                 bot.answer_callback_query(call.id, "❌ فشل في إزالة المشرف.")
 
+    # ✅ زر إرسال رسالة جماعية
+    @bot.callback_query_handler(func=lambda call: call.data == "broadcast:start")
+    def ask_broadcast_message(call):
+        if not is_admin(call.from_user.id):
+            return
+        msg = bot.send_message(call.message.chat.id, "📝 أرسل الآن الرسالة التي تريد إرسالها لجميع المستخدمين:")
+        bot.register_next_step_handler(msg, lambda m: confirm_broadcast(bot, m))
+
 def process_add_admin(bot, msg):
     user_input = msg.text.strip()
     if not user_input:
@@ -77,6 +85,27 @@ def process_add_admin(bot, msg):
     else:
         bot.reply_to(msg, "❌ هذا المستخدم غير موجود في البوت أو لم يضغط /start بعد.")
 
+def confirm_broadcast(bot, msg):
+    text = msg.text
+    if not text:
+        bot.reply_to(msg, "❌ الرسالة فارغة.")
+        return
+
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("✅ تأكيد الإرسال", callback_data=f"broadcast:confirm:{msg.message_id}"),
+        InlineKeyboardButton("🔙 إلغاء", callback_data="admin:menu")
+    )
+
+    bot.send_message(
+        msg.chat.id,
+        f"📢 هذه هي الرسالة التي سيتم إرسالها لجميع المستخدمين:\n\n{text}",
+        reply_markup=markup
+    )
+
+    # نحفظ الرسالة مؤقتًا في bot memory
+    bot._last_broadcast_text = text
+
 def show_admin_menu(bot, chat_id, message_id):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -88,3 +117,27 @@ def show_admin_menu(bot, chat_id, message_id):
     markup.add(InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="back_to_main"))
 
     bot.edit_message_text("🧑‍💼 لوحة المشرف:", chat_id, message_id, reply_markup=markup)
+
+# ✅ تنفيذ الإرسال الجماعي
+def register_broadcast_handler(bot):
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("broadcast:confirm"))
+    def execute_broadcast(call):
+        if not is_admin(call.from_user.id):
+            return
+        text = getattr(bot, "_last_broadcast_text", None)
+        if not text:
+            bot.answer_callback_query(call.id, "❌ لا توجد رسالة محفوظة.", show_alert=True)
+            return
+
+        bot.answer_callback_query(call.id, "📨 جاري إرسال الرسالة...")
+        from utils.db import get_all_user_ids
+
+        success_count = 0
+        for user_id in get_all_user_ids():
+            try:
+                bot.send_message(user_id, text)
+                success_count += 1
+            except:
+                continue
+
+        bot.edit_message_text(f"✅ تم إرسال الرسالة بنجاح إلى {success_count} مستخدم.", call.message.chat.id, call.message.message_id)
