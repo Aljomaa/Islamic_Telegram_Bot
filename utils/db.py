@@ -216,6 +216,11 @@ def add_admin(identifier):
             _id = identifier
             username = identifier
 
+        # ✅ تأكد أن المستخدم موجود في users
+        if not user_col.find_one({"_id": _id}):
+            return False
+
+        # ✅ تحقق إذا كان بالفعل مشرف
         if admin_col.find_one({"$or": [{"_id": _id}, {"username": username}]}):
             return False
 
