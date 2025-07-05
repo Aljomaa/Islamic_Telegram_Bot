@@ -2,6 +2,8 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from utils.db import is_admin, add_admin, remove_admin, get_bot_stats, get_admins, get_all_user_ids
 from config import OWNER_ID
 
+broadcast_cache = {}
+
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("admin:"))
     def handle_admin_actions(call: CallbackQuery):
@@ -58,13 +60,123 @@ def register(bot):
             else:
                 bot.answer_callback_query(call.id, "❌ فشل في إزالة المشرف.")
 
-    # ✅ زر إرسال رسالة جماعية
     @bot.callback_query_handler(func=lambda call: call.data == "broadcast:start")
-    def ask_broadcast_message(call):
+    def start_broadcast(call):
         if not is_admin(call.from_user.id):
             return
-        msg = bot.send_message(call.message.chat.id, "📝 أرسل الآن الرسالة التي تريد إرسالها لجميع المستخدمين:")
-        bot.register_next_step_handler(msg, lambda m: confirm_broadcast(bot, m))
+        msg = bot.send_message(call.message.chat.id, "📝 أرسل الآن الرسالة الجماعية (نص أو صورة أو فيديو أو غيرها):")
+        bot.register_next_step_handler(msg, lambda m: preview_broadcast(bot, m))
+
+    @bot.callback_query_handler(func=lambda call: call.data == "broadcast:confirm")
+    def confirm_broadcast(call):
+        if not is_admin(call.from_user.id):
+            return
+        bot.answer_callback_query(call.id, "🚀 يتم الآن إرسال الرسالة...")
+        content = broadcast_cache.get(call.from_user.id)
+        if not content:
+            bot.send_message(call.message.chat.id, "❌ لا توجد رسالة لإرسالها.")
+            return
+
+        user_ids = get_all_user_ids()
+        sent = 0
+
+        for user_id in user_ids:
+            try:
+                if content['type'] == 'text':
+                    bot.send_message(user_id, content['text'])
+                elif content['type'] == 'photo':
+                    bot.send_photo(user_id, content['file_id'], caption=content['caption'])
+                elif content['type'] == 'video':
+                    bot.send_video(user_id, content['file_id'], caption=content['caption'])
+                elif content['type'] == 'voice':
+                    bot.send_voice(user_id, content['file_id'], caption=content['caption'])
+                elif content['type'] == 'document':
+                    bot.send_document(user_id, content['file_id'], caption=content['caption'])
+                elif content['type'] == 'sticker':
+                    bot.send_sticker(user_id, content['file_id'])
+                sent += 1
+            except:
+                continue
+
+        bot.send_message(call.message.chat.id, f"✅ تم إرسال الرسالة إلى {sent} مستخدم.")
+        del broadcast_cache[call.from_user.id]
+
+    @bot.callback_query_handler(func=lambda call: call.data == "broadcast:cancel")
+    def cancel_broadcast(call):
+        if not is_admin(call.from_user.id):
+            return
+        bot.answer_callback_query(call.id, "❌ تم إلغاء الإرسال.")
+        show_admin_menu(bot, call.message.chat.id, call.message.message_id)
+
+def preview_broadcast(bot, msg):
+    media_type = None
+    file_id = None
+    caption = msg.caption or msg.text or ""
+
+    if msg.text:
+        media_type = 'text'
+        broadcast_cache[msg.from_user.id] = {"type": "text", "text": msg.text}
+
+    elif msg.photo:
+        media_type = 'photo'
+        file_id = msg.photo[-1].file_id
+        broadcast_cache[msg.from_user.id] = {"type": "photo", "file_id": file_id, "caption": caption}
+
+    elif msg.video:
+        media_type = 'video'
+        file_id = msg.video.file_id
+        broadcast_cache[msg.from_user.id] = {"type": "video", "file_id": file_id, "caption": caption}
+
+    elif msg.voice:
+        media_type = 'voice'
+        file_id = msg.voice.file_id
+        broadcast_cache[msg.from_user.id] = {"type": "voice", "file_id": file_id, "caption": caption}
+
+    elif msg.document:
+        media_type = 'document'
+        file_id = msg.document.file_id
+        broadcast_cache[msg.from_user.id] = {"type": "document", "file_id": file_id, "caption": caption}
+
+    elif msg.sticker:
+        media_type = 'sticker'
+        file_id = msg.sticker.file_id
+        broadcast_cache[msg.from_user.id] = {"type": "sticker", "file_id": file_id}
+
+    else:
+        bot.send_message(msg.chat.id, "❌ نوع الرسالة غير مدعوم.")
+        return
+
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("✅ نعم، أرسل", callback_data="broadcast:confirm"),
+        InlineKeyboardButton("❌ إلغاء", callback_data="broadcast:cancel")
+    )
+
+    if media_type == "text":
+        bot.send_message(msg.chat.id, f"📬 المعاينة:\n\n{msg.text}", reply_markup=markup)
+    elif media_type == "photo":
+        bot.send_photo(msg.chat.id, file_id, caption=caption, reply_markup=markup)
+    elif media_type == "video":
+        bot.send_video(msg.chat.id, file_id, caption=caption, reply_markup=markup)
+    elif media_type == "voice":
+        bot.send_voice(msg.chat.id, file_id, caption=caption, reply_markup=markup)
+    elif media_type == "document":
+        bot.send_document(msg.chat.id, file_id, caption=caption, reply_markup=markup)
+    elif media_type == "sticker":
+        bot.send_sticker(msg.chat.id, file_id)
+        bot.send_message(msg.chat.id, "📬 هل تريد إرسال هذا الملصق؟", reply_markup=markup)
+
+def show_admin_menu(bot, chat_id, message_id):
+    markup = InlineKeyboardMarkup(row_width=2)
+    markup.add(
+        InlineKeyboardButton("📊 الإحصائيات", callback_data="admin:stats"),
+        InlineKeyboardButton("📢 إرسال رسالة جماعية", callback_data="broadcast:start"),
+        InlineKeyboardButton("➕ إضافة مشرف", callback_data="admin:add"),
+        InlineKeyboardButton("👥 عرض المشرفين", callback_data="admin:list")
+    )
+    markup.add(InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="back_to_main"))
+
+    bot.edit_message_text("🧑‍💼 لوحة المشرف:", chat_id, message_id, reply_markup=markup)
 
 def process_add_admin(bot, msg):
     user_input = msg.text.strip()
@@ -84,60 +196,3 @@ def process_add_admin(bot, msg):
         bot.reply_to(msg, f"✅ تم إضافة {user_input} كمشرف بنجاح.")
     else:
         bot.reply_to(msg, "❌ هذا المستخدم غير موجود في البوت أو لم يضغط /start بعد.")
-
-def confirm_broadcast(bot, msg):
-    text = msg.text
-    if not text:
-        bot.reply_to(msg, "❌ الرسالة فارغة.")
-        return
-
-    markup = InlineKeyboardMarkup()
-    markup.add(
-        InlineKeyboardButton("✅ تأكيد الإرسال", callback_data=f"broadcast:confirm:{msg.message_id}"),
-        InlineKeyboardButton("🔙 إلغاء", callback_data="admin:menu")
-    )
-
-    bot.send_message(
-        msg.chat.id,
-        f"📢 هذه هي الرسالة التي سيتم إرسالها لجميع المستخدمين:\n\n{text}",
-        reply_markup=markup
-    )
-
-    # نحفظ الرسالة مؤقتًا في bot memory
-    bot._last_broadcast_text = text
-
-def show_admin_menu(bot, chat_id, message_id):
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("📊 الإحصائيات", callback_data="admin:stats"),
-        InlineKeyboardButton("📢 إرسال رسالة جماعية", callback_data="broadcast:start"),
-        InlineKeyboardButton("➕ إضافة مشرف", callback_data="admin:add"),
-        InlineKeyboardButton("👥 عرض المشرفين", callback_data="admin:list")
-    )
-    markup.add(InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="back_to_main"))
-
-    bot.edit_message_text("🧑‍💼 لوحة المشرف:", chat_id, message_id, reply_markup=markup)
-
-# ✅ تنفيذ الإرسال الجماعي
-def register_broadcast_handler(bot):
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("broadcast:confirm"))
-    def execute_broadcast(call):
-        if not is_admin(call.from_user.id):
-            return
-        text = getattr(bot, "_last_broadcast_text", None)
-        if not text:
-            bot.answer_callback_query(call.id, "❌ لا توجد رسالة محفوظة.", show_alert=True)
-            return
-
-        bot.answer_callback_query(call.id, "📨 جاري إرسال الرسالة...")
-        from utils.db import get_all_user_ids
-
-        success_count = 0
-        for user_id in get_all_user_ids():
-            try:
-                bot.send_message(user_id, text)
-                success_count += 1
-            except:
-                continue
-
-        bot.edit_message_text(f"✅ تم إرسال الرسالة بنجاح إلى {success_count} مستخدم.", call.message.chat.id, call.message.message_id)
