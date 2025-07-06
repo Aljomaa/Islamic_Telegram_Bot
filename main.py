@@ -1,10 +1,8 @@
 import telebot
-from config import BOT_TOKEN
+from config import BOT_TOKEN, OWNER_ID
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings, misbaha
 from tasks import reminders
 from utils.db import is_admin, add_admin, register_user
-from config import OWNER_ID
-
 import threading
 from flask import Flask
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -37,7 +35,6 @@ def show_main_menu(bot, message):
         reply_markup=markup
     )
 
-# ✅ أمر /start
 @bot.message_handler(commands=['start'])
 def welcome(msg):
     print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")
@@ -63,7 +60,6 @@ def welcome(msg):
         reply_markup=markup
     )
 
-# ✅ التعامل مع القائمة الرئيسية
 @bot.callback_query_handler(func=lambda call: call.data.startswith("menu:") or call.data == "back_to_main")
 def handle_main_menu(call):
     bot.answer_callback_query(call.id)
@@ -133,7 +129,6 @@ app = Flask(__name__)
 def home():
     return "Bot is running!"
 
-# ✅ تسجيل صاحب البوت كمشرف مرة واحدة فقط عند التشغيل
 if __name__ == '__main__':
     if not is_admin(OWNER_ID):
         print('🔐 إضافة المالك كمشرف...')
