@@ -1,8 +1,8 @@
 import telebot
 from config import BOT_TOKEN
-from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings
+from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings, misbaha
 from tasks import reminders
-from utils.db import is_admin, add_admin, register_user  # ✅ ضروري
+from utils.db import is_admin, add_admin, register_user
 from config import OWNER_ID
 
 import threading
@@ -22,6 +22,7 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("📖 القرآن الكريم", callback_data="menu:quran"),
         InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
         InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
+        InlineKeyboardButton("📿 المسبحة", callback_data="menu:misbaha"),
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
@@ -48,6 +49,7 @@ def welcome(msg):
         InlineKeyboardButton("📖 القرآن الكريم", callback_data="menu:quran"),
         InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
         InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
+        InlineKeyboardButton("📿 المسبحة", callback_data="menu:misbaha"),
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
@@ -83,6 +85,10 @@ def handle_main_menu(call):
         from handlers.hadith import show_hadith_menu
         show_hadith_menu(bot, call.message)
 
+    elif action == "misbaha":
+        from handlers.misbaha import show_misbaha_menu
+        show_misbaha_menu(bot, call.message.chat.id, call.message.message_id)
+
     elif action == "fav":
         from handlers.favorites import show_fav_main_menu
         show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
@@ -108,6 +114,7 @@ def handle_main_menu(call):
 # ✅ تسجيل باقي الأوامر
 prayers.register(bot)
 quran.register(bot)
+quran.handle_callbacks(bot)
 athkar.register(bot)
 favorites.register(bot)
 complaints.register(bot)
@@ -115,6 +122,7 @@ complaints.handle_callbacks(bot)
 admin.register(bot)
 hadith.register(bot)
 settings.register(bot)
+misbaha.register(bot)
 
 # ✅ تشغيل البوت و Flask
 def run_bot():
