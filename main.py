@@ -114,7 +114,6 @@ def handle_main_menu(call):
 # ✅ تسجيل باقي الأوامر
 prayers.register(bot)
 quran.register(bot)
-quran.handle_callbacks(bot)
 athkar.register(bot)
 favorites.register(bot)
 complaints.register(bot)
