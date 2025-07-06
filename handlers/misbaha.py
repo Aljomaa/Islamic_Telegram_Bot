@@ -25,7 +25,6 @@ def register(bot):
             update_misbaha_message(bot, call.message, count)
 
         elif action == "back":
-            bot.delete_message(call.message.chat.id, call.message.message_id)
             show_main_menu(bot, call.message)
 
 def show_misbaha_menu(bot, chat_id, message_id=None):
