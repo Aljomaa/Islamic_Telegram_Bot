@@ -1,5 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.db import get_misbahah_count, update_misbahah_count, reset_misbahah
+from utils.db import get_misbaha_count, update_misbaha_count, reset_misbaha
 from utils.menu import show_main_menu
 
 def register(bot):
