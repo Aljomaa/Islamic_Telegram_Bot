@@ -257,3 +257,22 @@ def remove_admin(identifier):
 
 def get_admins():
     return list(admin_col.find({}))
+
+# ✅ المسبحة (Misbaha)
+def get_misbaha_count(user_id):
+    user = db.misbaha.find_one({"user_id": user_id})
+    return user["count"] if user and "count" in user else 0
+
+def update_misbaha_count(user_id, count):
+    db.misbaha.update_one(
+        {"user_id": user_id},
+        {"$set": {"count": count}},
+        upsert=True
+    )
+
+def reset_misbaha(user_id):
+    db.misbaha.update_one(
+        {"user_id": user_id},
+        {"$set": {"count": 0}},
+        upsert=True
+    )
