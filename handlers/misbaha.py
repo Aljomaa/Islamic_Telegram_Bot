@@ -1,5 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.db import get_user_tasbeeh_count, set_user_tasbeeh_count
+from utils.db import get_misbahah_count, update_misbahah_count, reset_misbahah
 from utils.menu import show_main_menu
 
 def register(bot):
@@ -12,16 +12,16 @@ def register(bot):
         user_id = call.from_user.id
         action = call.data.split(":")[1]
 
-        count = get_user_tasbeeh_count(user_id) or 0
+        count = get_misbahah_count(user_id)
 
         if action == "add":
             count += 1
-            set_user_tasbeeh_count(user_id, count)
+            update_misbahah_count(user_id, count)
             update_misbahah_message(bot, call.message, count)
 
         elif action == "reset":
             count = 0
-            set_user_tasbeeh_count(user_id, count)
+            reset_misbahah(user_id)
             update_misbahah_message(bot, call.message, count)
 
         elif action == "back":
@@ -29,8 +29,8 @@ def register(bot):
             show_main_menu(bot, call.message)
 
 def show_misbahah_menu(bot, chat_id, message_id=None):
-    count = get_user_tasbeeh_count(chat_id) or 0
-    text = f"🧮 المسبحة الإلكترونية\n\n🔢 عدد التسبيحات: {count}"
+    count = get_misbahah_count(chat_id)
+    text = f"📿 *المسبحة الإلكترونية*\n\n🔢 *عدد التسبيحات:* `{count}`"
 
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -40,16 +40,18 @@ def show_misbahah_menu(bot, chat_id, message_id=None):
     markup.add(InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="misbahah:back"))
 
     if message_id:
-        bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+        bot.edit_message_text(text, chat_id, message_id, reply_markup=markup, parse_mode="Markdown")
     else:
-        bot.send_message(chat_id, text, reply_markup=markup)
+        bot.send_message(chat_id, text, reply_markup=markup, parse_mode="Markdown")
 
 def update_misbahah_message(bot, message, count):
-    text = f"🧮 المسبحة الإلكترونية\n\n🔢 عدد التسبيحات: {count}"
+    text = f"📿 *المسبحة الإلكترونية*\n\n🔢 *عدد التسبيحات:* `{count}`"
+
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton("➕ سبح", callback_data="misbahah:add"),
         InlineKeyboardButton("♻️ تصفير", callback_data="misbahah:reset"),
     )
     markup.add(InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="misbahah:back"))
-    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=markup)
+
+    bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=markup, parse_mode="Markdown")
