@@ -5,19 +5,20 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.db import add_to_fav
 from utils.menu import show_main_menu
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 API_BASE = "https://api.alquran.cloud/v1"
 HEADERS = {'User-Agent': 'Mozilla/5.0'}
 
-# ✅ القراء المعتمدين فقط
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# ✅ القراء المعتمدين
 RECITERS = {
     "مشاري العفاسي": "ar.alafasy",
     "عبد الباسط مجود": "ar.abdulbasitmurattal",
     "ماهر المعيقلي": "ar.mahermuaiqly"
 }
 
+# ✅ أسماء السور بالعربية
 SURAH_NAMES = [
     "الفاتحة", "البقرة", "آل عمران", "النساء", "المائدة", "الأنعام", "الأعراف", "الأنفال",
     "التوبة", "يونس", "هود", "يوسف", "الرعد", "إبراهيم", "الحجر", "النحل", "الإسراء",
@@ -38,14 +39,18 @@ SURAH_NAMES = [
 def register(bot):
     @bot.message_handler(commands=['quran', 'قرآن'])
     def cmd_quran(msg):
-        show_main_quran_menu(bot, msg.chat.id, msg.message_id)
+        show_main_quran_menu(bot, msg.chat.id, msg.message_id if hasattr(msg, 'message_id') else None)
 
     @bot.callback_query_handler(func=lambda call: call.data == "browse_quran")
-    def ask_surah_name(call):
-        bot.edit_message_text("📖 أرسل اسم السورة أو رقمها (1 - 114):", call.message.chat.id, call.message.message_id)
-        bot.register_next_step_handler(call.message, process_surah_input)
+    def ask_surah_name_or_number(call):
+        sent = bot.edit_message_text("📖 أرسل اسم السورة أو رقمها (1 - 114):", call.message.chat.id, call.message.message_id)
+        bot.register_next_step_handler(sent, process_surah_input, sent.message_id)
 
-    def process_surah_input(msg):
+    def process_surah_input(msg, prompt_id):
+        try:
+            bot.delete_message(msg.chat.id, msg.message_id)       # حذف رسالة المستخدم
+            bot.delete_message(msg.chat.id, prompt_id)            # حذف رسالة "أدخل اسم..."
+        except: pass
         text = msg.text.strip()
         if text.isdigit() and 1 <= int(text) <= 114:
             send_surah_info(msg.chat.id, int(text))
@@ -55,10 +60,10 @@ def register(bot):
             bot.send_message(msg.chat.id, "❌ لم يتم العثور على السورة، تحقق من الاسم أو الرقم.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "random_ayah")
-    def send_random_ayah(call):
+    def send_random_verse(call):
         try:
             surah_num = random.randint(1, 114)
-            res = requests.get(f"{API_BASE}/surah/{surah_num}/ar.alafasy", headers=HEADERS)
+            res = requests.get(f"{API_BASE}/surah/{surah_num}/ar.alafasy", headers=HEADERS, timeout=10)
             verses = res.json()['data']['ayahs']
             ayah = random.choice(verses)
             send_verse_details(bot, call.message.chat.id, surah_num, ayah['numberInSurah'], call.message.message_id, edit=True)
@@ -71,7 +76,7 @@ def register(bot):
             res = requests.get(f"{API_BASE}/surah/{surah_num}/ar.alafasy", headers=HEADERS)
             data = res.json()['data']
             ayah = data['ayahs'][0]
-            text = f"📖 سورة {data['name']}\n\nالآية 1:\n{ayah['text']}"
+            text = f"📖 سورة {data['name']}\nالآية 1:\n\n{ayah['text']}"
 
             markup = InlineKeyboardMarkup()
             markup.row(
@@ -87,7 +92,7 @@ def register(bot):
                 bot.send_message(chat_id, text, reply_markup=markup)
         except Exception as e:
             logger.error(f"[ERROR] Surah Info: {e}")
-            bot.send_message(chat_id, "❌ خطأ في عرض السورة")
+            bot.send_message(chat_id, "❌ حدث خطأ في عرض السورة")
 
     def send_verse_details(bot, chat_id, surah_num, ayah_num, message_id=None, edit=False):
         try:
@@ -99,6 +104,7 @@ def register(bot):
                 return
 
             text = f"📖 سورة {res.json()['data']['name']}\nالآية {ayah['numberInSurah']}:\n\n{ayah['text']}"
+
             markup = InlineKeyboardMarkup()
             markup.row(
                 InlineKeyboardButton("🔁 آية أخرى", callback_data="random_ayah"),
@@ -106,10 +112,13 @@ def register(bot):
                 InlineKeyboardButton("⭐ حفظ", callback_data=f"fav:{surah_num}:{ayah['numberInSurah']}")
             )
 
+            nav = []
             if ayah['numberInSurah'] > 1:
-                markup.add(InlineKeyboardButton("◀️ السابقة", callback_data=f"nav_{surah_num}_{ayah['numberInSurah'] - 1}"))
+                nav.append(InlineKeyboardButton("◀️ السابقة", callback_data=f"nav_{surah_num}_{ayah['numberInSurah'] - 1}"))
             if ayah['numberInSurah'] < len(verses):
-                markup.add(InlineKeyboardButton("▶️ التالية", callback_data=f"nav_{surah_num}_{ayah['numberInSurah'] + 1}"))
+                nav.append(InlineKeyboardButton("▶️ التالية", callback_data=f"nav_{surah_num}_{ayah['numberInSurah'] + 1}"))
+            if nav:
+                markup.row(*nav)
 
             markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu"))
 
@@ -119,20 +128,23 @@ def register(bot):
                 bot.send_message(chat_id, text, reply_markup=markup)
         except Exception as e:
             logger.error(f"[ERROR] Verse Details: {e}")
-            bot.send_message(chat_id, "❌ خطأ في عرض الآية")
+            bot.send_message(chat_id, "❌ حدث خطأ في عرض الآية")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("choose_reciter:"))
     def choose_reciter(call):
         _, surah, ayah = call.data.split(":")
         markup = InlineKeyboardMarkup()
         for name in RECITERS:
-            markup.add(InlineKeyboardButton(name, callback_data=f"play_audio:{RECITERS[name]}:{surah}:{ayah}"))
-        markup.add(InlineKeyboardButton("❌ رجوع", callback_data="delete_this"))
+            markup.add(InlineKeyboardButton(name, callback_data=f"play_audio:{RECITERS[name]}:{surah}:{ayah}:{call.message.message_id}"))
         bot.send_message(call.message.chat.id, "🎧 اختر القارئ للاستماع للآية:", reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("play_audio:"))
     def play_audio(call):
-        _, reciter, surah, ayah = call.data.split(":")
+        _, reciter, surah, ayah, msg_to_delete = call.data.split(":")
+        try:
+            bot.delete_message(call.message.chat.id, int(msg_to_delete))
+        except:
+            pass
         try:
             res = requests.get(f"{API_BASE}/surah/{surah}/{reciter}", headers=HEADERS)
             verses = res.json()['data']['ayahs']
@@ -140,40 +152,39 @@ def register(bot):
             if verse and verse.get("audio"):
                 bot.send_audio(call.message.chat.id, verse['audio'])
             else:
-                bot.answer_callback_query(call.id, "❌ لا توجد تلاوة صوتية")
+                bot.answer_callback_query(call.id, "❌ لا يوجد تلاوة صوتية")
         except Exception as e:
             logger.error(f"[ERROR] Audio: {e}")
-            bot.answer_callback_query(call.id, "❌ فشل تشغيل الصوت")
-
-    @bot.callback_query_handler(func=lambda call: call.data == "delete_this")
-    def delete_temp(call):
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-        except:
-            pass
+            bot.answer_callback_query(call.id, "❌ خطأ في تشغيل الصوت")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("fav:"))
-    def save_favorite(call):
-        _, surah, ayah = call.data.split(":")
+    def add_to_favorites(call):
         try:
+            _, surah, ayah = call.data.split(":")
             res = requests.get(f"{API_BASE}/surah/{surah}/ar.alafasy", headers=HEADERS)
             data = res.json()['data']
             verse = next((v for v in data['ayahs'] if v['numberInSurah'] == int(ayah)), None)
             if verse:
                 content = f"سورة {data['name']} - آية {ayah}:\n\n{verse['text']}"
                 add_to_fav(call.from_user.id, "ayah", content)
-                bot.answer_callback_query(call.id, "✅ تم حفظ الآية.")
+                bot.answer_callback_query(call.id, "✅ تم حفظ الآية في المفضلة.")
+            else:
+                bot.answer_callback_query(call.id, "❌ لم يتم العثور على الآية.")
         except Exception as e:
-            logger.error(f"[ERROR] Save Fav: {e}")
+            logger.error(f"[ERROR] Fav Ayah: {e}")
             bot.answer_callback_query(call.id, "❌ فشل الحفظ.")
 
     @bot.callback_query_handler(func=lambda call: call.data.startswith("nav_"))
-    def navigate(call):
-        _, surah, ayah = call.data.split("_")
-        send_verse_details(bot, call.message.chat.id, surah, ayah, call.message.message_id, edit=True)
+    def nav_verses(call):
+        try:
+            _, surah, ayah = call.data.split("_")
+            send_verse_details(bot, call.message.chat.id, surah, ayah, call.message.message_id, edit=True)
+        except Exception as e:
+            logger.error(f"[ERROR] Navigation: {e}")
+            bot.answer_callback_query(call.id, "❌ فشل التنقل.")
 
     @bot.callback_query_handler(func=lambda call: call.data == "main_menu")
-    def go_home(call):
+    def return_home(call):
         show_main_menu(bot, call.message)
 
 def show_main_quran_menu(bot, chat_id, message_id=None):
@@ -183,7 +194,6 @@ def show_main_quran_menu(bot, chat_id, message_id=None):
         InlineKeyboardButton("🕋 آية عشوائية", callback_data="random_ayah")
     )
     markup.add(InlineKeyboardButton("🏠 العودة للرئيسية", callback_data="main_menu"))
-
     text = "🌙 القرآن الكريم - اختر أحد الخيارات:"
     if message_id:
         bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
