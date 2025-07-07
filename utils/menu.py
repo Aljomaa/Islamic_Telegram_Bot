@@ -8,6 +8,7 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("📖 القرآن الكريم", callback_data="menu:quran"),
         InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
         InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
+        InlineKeyboardButton("📿 المسبحة", callback_data="menu:misbaha"),  # ✅ تمت إضافته هنا
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
