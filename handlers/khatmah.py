@@ -130,15 +130,14 @@ def register(bot):
                     call.message.message_id
                 )
                 return
-            # if not khatmah_started:
-if not khatmah_started:
-    bot.edit_message_text(
-        "📌 لم تبدأ الختمة بعد.\n"
-        "سأخبرك عند اكتمال العدد لتبدأ التلاوة بإذن الله.",
-        call.message.chat.id,
-        call.message.message_id
-    )
-    return
+            if not khatmah_started:
+                bot.edit_message_text(
+                    "📌 لم تبدأ الختمة بعد.\n"
+                    "سأخبرك عند اكتمال العدد لتبدأ التلاوة بإذن الله.",
+                    call.message.chat.id,
+                    call.message.message_id
+                )
+                return
             # ✅ جلب آخر آية قرأها
             index = get_last_ayah_index(user_id) or 0
             show_ayah(bot, call.message, user_id, juz, index)
@@ -214,4 +213,4 @@ def show_ayah(bot, message, user_id, juz, index):
             f"❌ خطأ:\n{e}",
             message.chat.id,
             message.message_id
-            )
+        )
