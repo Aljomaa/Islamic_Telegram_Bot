@@ -9,6 +9,10 @@ from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
+# تمرير كائن البوت إلى db.py لإرسال الرسائل من داخله
+from utils.db import set_bot_instance
+set_bot_instance(bot)
+
 # ✅ بدء التذكيرات
 reminders.start_reminders(bot)
 
