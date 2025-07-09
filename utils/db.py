@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from config import MONGO_URI, OWNER_ID
 from bson import ObjectId
 from datetime import datetime
+from telebot import TeleBot
 
 client = MongoClient(MONGO_URI)
 db = client["islamic_bot"]
@@ -10,6 +11,12 @@ user_col = db["users"]
 comp_col = db["complaints"]
 admin_col = db["admins"]
 khatmah_col = db["khatmah"]
+
+# ✅ ربط كائن البوت لإرسال الرسائل لاحقًا
+global_bot_instance: TeleBot = None
+def set_bot_instance(bot):
+    global global_bot_instance
+    global_bot_instance = bot
 
 # ✅ تسجيل المستخدم
 def register_user(user):
@@ -70,7 +77,7 @@ def get_user_timezone(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("timezone", "auto") if user else "auto"
 
-# 🔔 الإشعارات العامة
+# 🔔 الإشعارات
 def user_notifications_enabled(user_id):
     user = user_col.find_one({"_id": user_id})
     return user.get("notifications_enabled", True) if user else True
@@ -110,7 +117,7 @@ def set_user_reciter(user_id, reciter):
         upsert=True
     )
 
-# 🧾 الشكاوى والاقتراحات
+# 📝 الشكاوى
 def add_complaint(msg, type_):
     media_type = None
     file_id = None
@@ -182,9 +189,7 @@ def add_admin(identifier):
         else:
             user_doc = user_col.find_one({"username": identifier})
 
-        if not user_doc:
-            return False
-        if admin_col.find_one({"_id": user_doc["_id"]}):
+        if not user_doc or admin_col.find_one({"_id": user_doc["_id"]}):
             return False
         admin_col.insert_one({
             "_id": user_doc["_id"],
@@ -229,7 +234,8 @@ def reset_misbaha(user_id):
         upsert=True
     )
 
-# 📘 ختمتي
+# 📘 ختمة القرآن
+
 def get_active_khatmah():
     return khatmah_col.find_one({"status": "active"})
 
@@ -248,7 +254,7 @@ def assign_juz_to_user(user_id):
 
     participants = khatmah["participants"]
     if any(p["user_id"] == user_id for p in participants):
-        return next(p for p in participants if p["user_id"] == user_id)
+        return next(p["juz"] for p in participants if p["user_id"] == user_id)
 
     if len(participants) >= 30:
         khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
@@ -266,12 +272,11 @@ def assign_juz_to_user(user_id):
         {"$push": {"participants": participant}}
     )
 
-    # If 30 reached, open new khatmah
     if len(participants) + 1 == 30:
         khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
         start_new_khatmah()
 
-    return participant
+    return juz_number
 
 def start_new_khatmah():
     khatmah_number = khatmah_col.count_documents({}) + 1
@@ -281,21 +286,72 @@ def start_new_khatmah():
         "participants": [],
         "created_at": datetime.utcnow()
     })
+    notify_khatmah_started(khatmah_number)
 
-def get_user_khatmah_part(user_id):
-    khatmah = khatmah_col.find_one({
-        "participants.user_id": user_id
-    }, {"participants.$": 1, "number": 1})
-    if khatmah and "participants" in khatmah:
-        return {
-            "khatmah_number": khatmah["number"],
-            "juz": khatmah["participants"][0]["juz"],
-            "status": khatmah["participants"][0]["status"]
-        }
+def get_user_juz(user_id):
+    khatmah = khatmah_col.find_one({"participants.user_id": user_id}, {"participants.$": 1})
+    if khatmah and khatmah.get("participants"):
+        return khatmah["participants"][0]["juz"]
     return None
+
+def get_khatmah_number(user_id):
+    khatmah = khatmah_col.find_one({"participants.user_id": user_id}, {"number": 1})
+    return khatmah["number"] if khatmah else None
+
+def get_khatmah_status(user_id):
+    khatmah = khatmah_col.find_one({"participants.user_id": user_id}, {"participants.$": 1})
+    if khatmah:
+        return khatmah.get("status", "unknown") == "completed"
+    return False
+
+def get_juz_status(user_id):
+    khatmah = khatmah_col.find_one({"participants.user_id": user_id}, {"participants.$": 1})
+    if khatmah and khatmah.get("participants"):
+        return khatmah["participants"][0]["status"] == "completed"
+    return False
 
 def mark_juz_completed(user_id):
     khatmah_col.update_one(
         {"participants.user_id": user_id},
         {"$set": {"participants.$.status": "completed"}}
-)
+    )
+    khatmah = khatmah_col.find_one({"participants.user_id": user_id})
+    if not khatmah:
+        return
+
+    participants = khatmah.get("participants", [])
+    if all(p["status"] == "completed" for p in participants):
+        khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "completed"}})
+        notify_khatmah_completed(khatmah["number"])
+
+# ✅ إشعارات
+def notify_khatmah_started(khatmah_number):
+    khatmah = khatmah_col.find_one({"number": khatmah_number})
+    if not khatmah or not khatmah.get("participants"):
+        return
+
+    for p in khatmah["participants"]:
+        try:
+            global_bot_instance.send_message(
+                p["user_id"],
+                f"📘 بدأت ختمة رقم {khatmah_number}\n"
+                "نذكّركم بقراءة الجزء المخصص لكم بدءًا من الآن وحتى 24 ساعة كحد أقصى.\n"
+                "وفقكم الله وبارك فيكم ❤️"
+            )
+        except:
+            continue
+
+def notify_khatmah_completed(khatmah_number):
+    khatmah = khatmah_col.find_one({"number": khatmah_number})
+    if not khatmah or not khatmah.get("participants"):
+        return
+
+    for p in khatmah["participants"]:
+        try:
+            global_bot_instance.send_message(
+                p["user_id"],
+                f"🎉 تهانينا! لقد أتممتم ختمة رقم {khatmah_number} بنجاح وفي وقت مثالي!\n"
+                "🤲 نسأل الله أن يتقبل منكم، ويجعلكم من أهل القرآن وخاصته."
+            )
+        except:
+            continue
