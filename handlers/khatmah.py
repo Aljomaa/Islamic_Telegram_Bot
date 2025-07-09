@@ -68,7 +68,9 @@ def register(bot):
         juz = get_user_juz(user_id)
 
         if action == "info":
-            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ رجوع", callback_data="main"))
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"))
+            markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main"))
             bot.edit_message_text(
                 "📖 *الختمة القرآنية* هي فرصة عظيمة لختم كتاب الله الكريم جماعيًا، حيث يقرأ كل مشترك جزءًا واحدًا بنيّة ختم القرآن كاملًا مع إخوانه وأخواته.\n\n"
                 "🤲 انضمامك معنا لا يستغرق منك وقتًا طويلًا، لكنه يفتح لك بابًا من الأجر لا يُغلق، فقد قال ﷺ:\n"
@@ -93,7 +95,10 @@ def register(bot):
                         "⚠️ جميع الأجزاء محجوزة حالياً.\n"
                         "📨 سيتم إعلامك عند بدء ختمة جديدة.",
                         call.message.chat.id,
-                        call.message.message_id
+                        call.message.message_id,
+                        reply_markup=InlineKeyboardMarkup().add(
+                            InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                        )
                     )
 
         elif action == "myjuz":
@@ -101,7 +106,11 @@ def register(bot):
                 bot.edit_message_text(
                     "❌ لا يوجد جزء مخصص لك.\nانضم أولاً إلى الختمة.",
                     call.message.chat.id,
-                    call.message.message_id
+                    call.message.message_id,
+                    reply_markup=InlineKeyboardMarkup().add(
+                        InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
+                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                    )
                 )
                 return
             khatmah_started = get_khatmah_status(user_id)
@@ -110,7 +119,11 @@ def register(bot):
                     "📌 لم تبدأ الختمة بعد.\n"
                     "سأخبرك عند اكتمال العدد لتبدأ التلاوة بإذن الله.",
                     call.message.chat.id,
-                    call.message.message_id
+                    call.message.message_id,
+                    reply_markup=InlineKeyboardMarkup().add(
+                        InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
+                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                    )
                 )
                 return
             index = get_last_ayah_index(user_id) or 0
@@ -147,7 +160,8 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
                 )
             )
 
@@ -159,12 +173,10 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
                 )
             )
-
-        elif action == "main":
-            show_main_menu(bot, call.message)
 
 def show_juz_menu(bot, message, juz):
     markup = InlineKeyboardMarkup(row_width=2)
