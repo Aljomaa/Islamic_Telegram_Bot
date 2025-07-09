@@ -16,7 +16,6 @@ from utils.menu import show_main_menu
 BASE_URL = "https://api.quran.gading.dev/juz/"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# ✅ جلب نطاقات السور من API
 def get_surah_ranges():
     try:
         res = requests.get("https://api.quran.gading.dev/surah", headers=HEADERS)
@@ -34,21 +33,19 @@ def get_surah_ranges():
     except:
         return []
 
-# ✅ استخراج اسم السورة بناءً على رقم الآية في القرآن
 def get_surah_name(in_quran_number, ranges):
     for start, end, name in ranges:
         if start <= in_quran_number <= end:
             return name
     return "❓سورة غير معروفة"
 
-# ✅ واجهة الختمة
 def show_khatmah_home(bot, message):
     markup = InlineKeyboardMarkup()
     markup.add(
         InlineKeyboardButton("❓ ما هي ختمة؟", callback_data="khatmah:info"),
         InlineKeyboardButton("📥 الانضمام إلى ختمة", callback_data="khatmah:join")
     )
-    markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main"))
+    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
     bot.edit_message_text(
         "📖 *أهلاً بك في ختمة القرآن الجماعية!*",
         message.chat.id,
@@ -60,7 +57,6 @@ def show_khatmah_home(bot, message):
 def show_khatmah_menu_entry(bot, message):
     show_khatmah_home(bot, message)
 
-# ✅ التسجيل في النظام
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("khatmah:"))
     def handle_khatmah_buttons(call):
@@ -71,7 +67,7 @@ def register(bot):
         juz = get_user_juz(user_id)
 
         if action == "info":
-            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ رجوع", callback_data="main"))
+            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_main"))
             bot.edit_message_text(
                 "*📖 ما هي ختمة؟*\n\n"
                 "هي ختمة جماعية يشارك فيها 30 مسلم، كل واحد يقرأ جزء.\n"
@@ -116,19 +112,15 @@ def register(bot):
             index = get_last_ayah_index(user_id) or 0
             show_ayah(bot, call.message, user_id, juz, max(0, index - 1))
 
-        elif action == "listen":
-            if juz:
-                audio_url = f"https://verses.quran.com/MisharyAlafasy/mp3/{juz:02}.mp3"
-                bot.send_audio(call.message.chat.id, audio_url, caption=f"🎧 الجزء {juz}")
-            else:
-                bot.answer_callback_query(call.id, "❌ لا يوجد جزء مخصص لك.")
-
         elif action == "complete":
             mark_juz_completed(user_id)
             bot.edit_message_text(
                 "✅ تم تسجيل ختم جزءك. جزاك الله خيرًا.",
                 call.message.chat.id,
-                call.message.message_id
+                call.message.message_id,
+                reply_markup=InlineKeyboardMarkup().add(
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main")
+                )
             )
 
         elif action == "status":
@@ -143,7 +135,7 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_main")
                 )
             )
 
@@ -155,32 +147,29 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_main")
                 )
             )
 
         elif action == "main":
             show_main_menu(bot, call.message)
 
-# ✅ عرض القائمة الخاصة بالجزء
 def show_juz_menu(bot, message, juz):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
         InlineKeyboardButton("📖 جزئي", callback_data="khatmah:myjuz"),
-        InlineKeyboardButton("🎧 سماع جزئي", callback_data="khatmah:listen"),
         InlineKeyboardButton("📊 حالة الختمة", callback_data="khatmah:status"),
         InlineKeyboardButton("📌 حالة جزئي", callback_data="khatmah:mystatus")
     )
-    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
+    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
     bot.edit_message_text(
         f"📘 الجزء المخصص لك هو: {juz}\n"
-        "يمكنك الآن البدء بالتلاوة أو الاستماع.",
+        "يمكنك الآن البدء بالتلاوة أو متابعة الحالة.",
         message.chat.id,
         message.message_id,
         reply_markup=markup
     )
 
-# ✅ عرض آية من الجزء
 def show_ayah(bot, message, user_id, juz, index):
     try:
         res = requests.get(BASE_URL + str(juz), headers=HEADERS)
@@ -206,11 +195,12 @@ def show_ayah(bot, message, user_id, juz, index):
             buttons.append(InlineKeyboardButton("⬅️ السابق", callback_data="khatmah:prev"))
         if index < len(verses) - 1:
             buttons.append(InlineKeyboardButton("التالي ➡️", callback_data="khatmah:next"))
-        nav.add(*buttons)
+        if buttons:
+            nav.add(*buttons)
         nav.add(
-            InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete"),
-            InlineKeyboardButton("🏠 الرئيسية", callback_data="main")
+            InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete")
         )
+        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
 
         bot.edit_message_text(
             msg,
@@ -224,4 +214,4 @@ def show_ayah(bot, message, user_id, juz, index):
             f"❌ خطأ: {e}",
             message.chat.id,
             message.message_id
-        )
+    )
