@@ -1,6 +1,6 @@
 import telebot
 from config import BOT_TOKEN, OWNER_ID
-from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings, misbaha
+from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings, misbaha, khatmah
 from tasks import reminders
 from utils.db import is_admin, add_admin, register_user
 import threading
@@ -21,6 +21,7 @@ def show_main_menu(bot, message):
         InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
         InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
         InlineKeyboardButton("📿 المسبحة", callback_data="menu:misbaha"),
+        InlineKeyboardButton("📘 ختمتي", callback_data="menu:khatmah"),
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
@@ -47,6 +48,7 @@ def welcome(msg):
         InlineKeyboardButton("📿 الأذكار", callback_data="menu:athkar"),
         InlineKeyboardButton("📜 الحديث", callback_data="menu:hadith"),
         InlineKeyboardButton("📿 المسبحة", callback_data="menu:misbaha"),
+        InlineKeyboardButton("📘 ختمتي", callback_data="menu:khatmah"),
         InlineKeyboardButton("⭐ المفضلة", callback_data="menu:fav"),
         InlineKeyboardButton("📝 الشكاوى", callback_data="menu:complain"),
         InlineKeyboardButton("⚙️ الإعدادات", callback_data="menu:settings")
@@ -104,6 +106,10 @@ def handle_main_menu(call):
         from handlers.settings import show_settings_menu
         show_settings_menu(bot, call.message.chat.id, call.message.message_id)
 
+    elif action == "khatmah":
+        from handlers.khatmah import show_khatmah_menu_entry
+        show_khatmah_menu_entry(bot, call.message)
+
     elif action == "main" or call.data == "back_to_main":
         show_main_menu(bot, call.message)
 
@@ -118,6 +124,7 @@ admin.register(bot)
 hadith.register(bot)
 settings.register(bot)
 misbaha.register(bot)
+khatmah.register(bot)
 
 # ✅ تشغيل البوت و Flask
 def run_bot():
