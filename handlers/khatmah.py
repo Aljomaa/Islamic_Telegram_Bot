@@ -1,121 +1,114 @@
+import requests
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
-from utils.db import (
-    assign_user_to_khatmah,
-    get_user_khatmah_info,
-    is_khatmah_full,
-    get_users_in_khatmah,
-    get_part_text,
-    mark_part_completed,
-    is_part_completed
-)
+from utils.db import assign_juz_to_user, get_user_juz, get_users_in_khatmah, mark_juz_completed
 from utils.menu import show_main_menu
+
+BASE_URL = "https://api.quran.gading.dev/juz/"
+
+# ✅ الحصول على اسم السورة من خلال ترتيبها داخل المصحف
+def get_surah_ranges():
+    try:
+        res = requests.get("https://api.quran.gading.dev/surah")
+        data = res.json()["data"]
+        surah_ranges = []
+        in_quran_counter = 1
+
+        for surah in data:
+            total_ayahs = surah["numberOfVerses"]
+            name = surah["name"]["short"]
+            start = in_quran_counter
+            end = start + total_ayahs - 1
+            surah_ranges.append((start, end, name))
+            in_quran_counter = end + 1
+
+        return surah_ranges
+    except Exception as e:
+        return []
+
+def get_surah_name(in_quran_number, ranges):
+    for start, end, name in ranges:
+        if start <= in_quran_number <= end:
+            return name
+    return "❓سورة غير معروفة"
 
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data == "menu:khatmah")
-    def show_khatmah_entry(call):
+    def show_khatmah_menu(call):
         user_id = call.from_user.id
-        info = get_user_khatmah_info(user_id)
+        juz = get_user_juz(user_id)
 
-        if not info:
-            joined = assign_user_to_khatmah(user_id)
-            if not joined:
-                bot.answer_callback_query(call.id, "❌ حدث خطأ أثناء الانضمام.")
-                return
-            info = get_user_khatmah_info(user_id)
-            if is_khatmah_full(info["khatmah_id"]):
-                notify_khatmah_filled(bot, info["khatmah_id"])
+        if juz:
+            show_user_juz(bot, call.message, user_id, juz)
+        else:
+            assigned = assign_juz_to_user(user_id)
+            if assigned:
+                show_user_juz(bot, call.message, user_id, assigned)
+            else:
+                bot.edit_message_text(
+                    "❌ تم إكمال هذه الختمة. سيتم إشعارك عند بدء ختمة جديدة بإذن الله.",
+                    call.message.chat.id,
+                    call.message.message_id
+                )
 
-        show_khatmah_options(bot, call.message, user_id, info)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "khatmah:part")
-    def show_my_part(call):
+    @bot.callback_query_handler(func=lambda call: call.data.startswith("khatmah:"))
+    def handle_khatmah_buttons(call):
         user_id = call.from_user.id
-        info = get_user_khatmah_info(user_id)
-        text = get_part_text(info["juz"])
-        bot.edit_message_text(
-            f"📖 *جزءك رقم {info['juz']}*\n\n{text[:1000]}...",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            reply_markup=InlineKeyboardMarkup().add(
-                InlineKeyboardButton("⬅️ الرجوع", callback_data="menu:khatmah")
+        juz = get_user_juz(user_id)
+        action = call.data.split(":")[1]
+
+        if action == "complete":
+            mark_juz_completed(user_id)
+            bot.edit_message_text(
+                "✅ تم تحديد الجزء كمكتمل! جزاك الله خيرًا على إسهامك في الختمة.",
+                call.message.chat.id,
+                call.message.message_id
             )
+        elif action == "main":
+            show_main_menu(bot, call.message)
+        elif action == "listen":
+            audio_url = f"https://verses.quran.com/MisharyAlafasy/mp3/{juz:02}.mp3"
+            bot.send_audio(call.message.chat.id, audio_url, caption=f"🎧 الاستماع للجزء {juz}")
+        elif action == "myjuz":
+            show_user_juz(bot, call.message, user_id, juz)
+
+def show_user_juz(bot, message, user_id, juz):
+    try:
+        res = requests.get(BASE_URL + str(juz))
+        if res.status_code != 200:
+            raise Exception("فشل في جلب الجزء.")
+
+        data = res.json()["data"]
+        ayahs = data["ayahs"]
+        ranges = get_surah_ranges()
+
+        text = f"📘 *تم استلام الجزء {juz}، عدد الآيات: {len(ayahs)}*\n\n"
+        for ayah in ayahs:
+            num = ayah["number"]["inQuran"]
+            surah_name = get_surah_name(num, ranges)
+            ayah_number = ayah["number"]["inSurah"]
+            ayah_text = ayah["text"]["arab"]
+            text += f"*{surah_name}* [{ayah_number}]: {ayah_text}\n"
+
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("📖 جزئي", callback_data="khatmah:myjuz"),
+            InlineKeyboardButton("🎧 الاستماع له", callback_data="khatmah:listen"),
+        )
+        markup.add(
+            InlineKeyboardButton("✅ إكمال الجزء", callback_data="khatmah:complete"),
+            InlineKeyboardButton("🏠 العودة", callback_data="khatmah:main")
         )
 
-    @bot.callback_query_handler(func=lambda call: call.data.startswith("khatmah:play:"))
-    def play_juz_audio(call):
-        juz = int(call.data.split(":")[2])
-        audio_url = f"https://verses.quran.com/alafasy/juz_{juz:02d}.mp3"
-        try:
-            bot.delete_message(call.message.chat.id, call.message.message_id)
-            bot.send_audio(
-                call.message.chat.id,
-                audio_url,
-                caption=f"🔊 الاستماع إلى جزء {juz}",
-                reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ العودة", callback_data="menu:khatmah")
-                )
-            )
-        except:
-            bot.send_message(call.message.chat.id, "❌ فشل في تحميل الصوت.")
-
-    @bot.callback_query_handler(func=lambda call: call.data == "khatmah:status")
-    def show_part_status(call):
-        user_id = call.from_user.id
-        info = get_user_khatmah_info(user_id)
-        completed = is_part_completed(info["khatmah_id"], info["juz"])
-        status = "✅ مكتمل" if completed else "⌛️ جاري القراءة"
-        bot.answer_callback_query(call.id, f"📍 حالة الجزء: {status}", show_alert=True)
-
-    @bot.callback_query_handler(func=lambda call: call.data == "khatmah:complete")
-    def mark_complete(call):
-        user_id = call.from_user.id
-        info = get_user_khatmah_info(user_id)
-        mark_part_completed(info["khatmah_id"], info["juz"])
-        bot.answer_callback_query(call.id, "✅ تم تأكيد إتمام الجزء.", show_alert=True)
-        show_khatmah_options(bot, call.message, user_id, info)
-
-def show_khatmah_options(bot, message, user_id, info):
-    juz = info["juz"]
-    khatmah_id = info["khatmah_id"]
-    completed = is_part_completed(khatmah_id, juz)
-
-    text = f"""📘 *ختمتي*
-
-🔢 *الختمة:* `{khatmah_id}`
-📖 *جزءك:* `{juz}`
-📍 *الحالة:* {"✅ مكتمل" if completed else "⌛️ جاري القراءة"}
-"""
-
-    markup = InlineKeyboardMarkup(row_width=2)
-    markup.add(
-        InlineKeyboardButton("📖 جزئي", callback_data="khatmah:part"),
-        InlineKeyboardButton("🔊 الاستماع", callback_data=f"khatmah:play:{juz}"),
-        InlineKeyboardButton("📍 حالة الجزء", callback_data="khatmah:status")
-    )
-    if not completed:
-        markup.add(InlineKeyboardButton("✅ إتمام الجزء", callback_data="khatmah:complete"))
-    markup.add(InlineKeyboardButton("⬅️ الرجوع", callback_data="back_to_main"))
-
-    try:
-        bot.edit_message_text(text, message.chat.id, message.message_id, reply_markup=markup, parse_mode="Markdown")
-    except:
-        bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="Markdown")
-
-def notify_khatmah_filled(bot, khatmah_id):
-    users = get_users_in_khatmah(khatmah_id)
-    for user in users:
-        try:
-            bot.send_message(
-                user["user_id"],
-                f"""📘 *تم اكتمال الختمة رقم {khatmah_id}!*
-
-⏳ لديك 24 ساعة لإتمام الجزء المخصص لك.
-
-💡 لا تنس أن تؤكد إتمام الجزء من خلال الضغط على زر "✅ إتمام الجزء".
-
-🌟 نسأل الله لك القبول!""",
-                parse_mode="Markdown"
-            )
-        except:
-            continue
+        bot.edit_message_text(
+            text,
+            message.chat.id,
+            message.message_id,
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    except Exception as e:
+        bot.edit_message_text(
+            f"❌ خطأ خلال جلب الجزء:\n{e}",
+            message.chat.id,
+            message.message_id
+        )
