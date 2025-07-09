@@ -367,14 +367,6 @@ def get_bot_stats():
         "active_khatmah": khatmah_col.count_documents({"status": "active"})
     }
 
-
-# 📊 إحصائيات البوت (مضافة لإصلاح الخطأ في admin.py)
-def get_bot_stats():
-    return {
-        "users": user_col.count_documents({}),
-        "admins": admin_col.count_documents({}),
-        "complaints": comp_col.count_documents({}),
-        "khatmah": khatmah_col.count_documents({}),
-        "active_khatmah": khatmah_col.count_documents({"status": "active"})
-        }
-        
+# 🆔 جلب جميع معرفات المستخدمين (مطلوبة للبث الجماعي)
+def get_all_user_ids():
+    return [user["_id"] for user in user_col.find({}, {"_id": 1})]
