@@ -14,7 +14,6 @@ from utils.menu import show_main_menu
 
 BASE_URL = "https://api.quran.gading.dev/juz/"
 
-# ✅ الحصول على اسم السورة من خلال ترتيبها داخل المصحف
 def get_surah_ranges():
     try:
         res = requests.get("https://api.quran.gading.dev/surah")
@@ -187,4 +186,14 @@ def show_user_juz(bot, message, user_id, juz):
             f"❌ خطأ خلال جلب الجزء:\n{e}",
             message.chat.id,
             message.message_id
-            )
+        )
+
+# ✅ هذه الدالة الجديدة لحل مشكلة زر "ختمتي"
+def show_khatmah_menu_entry(bot, message):
+    class DummyCall:
+        def __init__(self, message):
+            self.data = "menu:khatmah"
+            self.message = message
+            self.from_user = message.from_user
+            self.id = "dummy_id"
+    show_khatmah_home(DummyCall(message))
