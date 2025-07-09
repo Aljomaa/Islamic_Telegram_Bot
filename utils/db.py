@@ -372,3 +372,15 @@ def get_bot_stats():
 # 🆔 جلب معرفات المستخدمين للبث الجماعي
 def get_all_user_ids():
     return [user["_id"] for user in user_col.find({}, {"_id": 1})]
+
+# ✅ متابعة آخر آية في الجزء
+def get_last_ayah_index(user_id):
+    user = user_col.find_one({"_id": user_id})
+    return user.get("last_ayah_index", 0) if user else 0
+
+def set_last_ayah_index(user_id, index):
+    user_col.update_one(
+        {"_id": user_id},
+        {"$set": {"last_ayah_index": index}},
+        upsert=True
+    )
