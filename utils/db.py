@@ -235,9 +235,14 @@ def reset_misbaha(user_id):
     )
 
 # 📘 ختمة القرآن
-
 def get_active_khatmah():
     return khatmah_col.find_one({"status": "active"})
+
+def get_users_in_khatmah():
+    khatmah = get_active_khatmah()
+    if not khatmah:
+        return []
+    return [p["user_id"] for p in khatmah.get("participants", [])]
 
 def assign_juz_to_user(user_id):
     khatmah = get_active_khatmah()
@@ -324,12 +329,10 @@ def mark_juz_completed(user_id):
         khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "completed"}})
         notify_khatmah_completed(khatmah["number"])
 
-# ✅ إشعارات
 def notify_khatmah_started(khatmah_number):
     khatmah = khatmah_col.find_one({"number": khatmah_number})
     if not khatmah or not khatmah.get("participants"):
         return
-
     for p in khatmah["participants"]:
         try:
             global_bot_instance.send_message(
@@ -345,7 +348,6 @@ def notify_khatmah_completed(khatmah_number):
     khatmah = khatmah_col.find_one({"number": khatmah_number})
     if not khatmah or not khatmah.get("participants"):
         return
-
     for p in khatmah["participants"]:
         try:
             global_bot_instance.send_message(
@@ -356,8 +358,7 @@ def notify_khatmah_completed(khatmah_number):
         except:
             continue
 
-
-# 📊 إحصائيات البوت (للاستخدام في admin.py)
+# 📊 إحصائيات البوت
 def get_bot_stats():
     return {
         "users": user_col.count_documents({}),
@@ -367,6 +368,6 @@ def get_bot_stats():
         "active_khatmah": khatmah_col.count_documents({"status": "active"})
     }
 
-# 🆔 جلب جميع معرفات المستخدمين (مطلوبة للبث الجماعي)
+# 🆔 معرفات المستخدمين (للبث الجماعي)
 def get_all_user_ids():
     return [user["_id"] for user in user_col.find({}, {"_id": 1})]
