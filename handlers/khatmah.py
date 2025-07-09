@@ -38,7 +38,7 @@ def get_surah_name(in_quran_number, ranges):
             return name
     return "❓سورة غير معروفة"
 
-# ✅ دالة عرض قائمة ختمة القرآن - خارج register
+# ✅ عرض واجهة ختمة
 def show_khatmah_home(bot, message):
     markup = InlineKeyboardMarkup()
     markup.add(
@@ -53,7 +53,7 @@ def show_khatmah_home(bot, message):
         reply_markup=markup
     )
 
-# ✅ هذه الدالة لحل مشكلة زر ختمتي
+# ✅ تشغيل الزر من القائمة الرئيسية
 def show_khatmah_menu_entry(bot, message):
     show_khatmah_home(bot, message)
 
@@ -69,11 +69,11 @@ def register(bot):
         if action == "info":
             bot.edit_message_text(
                 "*📖 ما هي ختمة؟*\n\n"
-                "الختمة الجماعية تتيح لك ختم القرآن الكريم مع إخوة وأخوات لك في الله.\n"
-                "- كل شخص يقرأ جزءًا.\n"
-                "- عند اكتمال الثلاثين جزءًا، نكون قد ختمنا معًا بإذن الله.\n"
-                "- كلما انتهت ختمة، تبدأ أخرى تلقائيًا.\n\n"
-                "🌟 شارك بالأجر وابدأ معنا الآن!",
+                "الختمة الجماعية تتيح لك ختم القرآن الكريم مع إخوة وأخوات لك في الله.\n\n"
+                "✅ كل شخص يُكلف بقراءة جزء واحد.\n"
+                "🔄 عند اكتمال الثلاثين جزءًا، نختم سويًا ونبدأ ختمة جديدة.\n"
+                "🎯 الهدف: نشر الخير والارتباط بالقرآن الكريم يوميًا.\n"
+                "🌟 بادر بالانضمام وكن من الذاكرين الله كثيرًا.",
                 call.message.chat.id,
                 call.message.message_id,
                 parse_mode="Markdown",
@@ -104,7 +104,7 @@ def register(bot):
                         call.message.chat.id,
                         call.message.message_id,
                         reply_markup=InlineKeyboardMarkup().add(
-                            InlineKeyboardButton("🏠 الرئيسية", callback_data="main:menu")
+                            InlineKeyboardButton("🏠 الرئيسية", callback_data="back_to_main")
                         )
                     )
                 else:
@@ -149,8 +149,8 @@ def show_user_juz(bot, message, user_id, juz):
         res = requests.get(BASE_URL + str(juz))
         if res.status_code != 200:
             raise Exception("فشل في جلب الجزء.")
-        data = res.json()["data"]
-        ayahs = data["ayahs"]
+        data = res.json().get("data", {})
+        ayahs = data.get("ayahs", [])
         ranges = get_surah_ranges()
 
         text = f"📘 *الجزء {juz}*\nعدد الآيات: {len(ayahs)}\n\n"
@@ -171,7 +171,7 @@ def show_user_juz(bot, message, user_id, juz):
         )
         markup.add(
             InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete"),
-            InlineKeyboardButton("🏠 العودة", callback_data="khatmah:main")
+            InlineKeyboardButton("🏠 العودة", callback_data="back_to_main")
         )
         markup.add(
             InlineKeyboardButton(f"📊 حالة الختمة: {'مكتملة ✅' if khatmah_status else 'قيد التنفيذ 🕓'}", callback_data="ignore"),
@@ -190,4 +190,4 @@ def show_user_juz(bot, message, user_id, juz):
             f"❌ خطأ خلال جلب الجزء:\n{e}",
             message.chat.id,
             message.message_id
-        )
+    )
