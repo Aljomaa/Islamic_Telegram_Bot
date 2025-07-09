@@ -16,6 +16,7 @@ from utils.menu import show_main_menu
 BASE_URL = "https://api.quran.gading.dev/juz/"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+# ✅ جلب نطاقات السور من API
 def get_surah_ranges():
     try:
         res = requests.get("https://api.quran.gading.dev/surah", headers=HEADERS)
@@ -33,12 +34,14 @@ def get_surah_ranges():
     except:
         return []
 
+# ✅ استخراج اسم السورة بناءً على رقم الآية في القرآن
 def get_surah_name(in_quran_number, ranges):
     for start, end, name in ranges:
         if start <= in_quran_number <= end:
             return name
     return "❓سورة غير معروفة"
 
+# ✅ واجهة الختمة
 def show_khatmah_home(bot, message):
     markup = InlineKeyboardMarkup()
     markup.add(
@@ -57,6 +60,7 @@ def show_khatmah_home(bot, message):
 def show_khatmah_menu_entry(bot, message):
     show_khatmah_home(bot, message)
 
+# ✅ التسجيل في النظام
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("khatmah:"))
     def handle_khatmah_buttons(call):
@@ -158,6 +162,7 @@ def register(bot):
         elif action == "main":
             show_main_menu(bot, call.message)
 
+# ✅ عرض القائمة الخاصة بالجزء
 def show_juz_menu(bot, message, juz):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -175,6 +180,7 @@ def show_juz_menu(bot, message, juz):
         reply_markup=markup
     )
 
+# ✅ عرض آية من الجزء
 def show_ayah(bot, message, user_id, juz, index):
     try:
         res = requests.get(BASE_URL + str(juz), headers=HEADERS)
@@ -201,12 +207,10 @@ def show_ayah(bot, message, user_id, juz, index):
         if index < len(verses) - 1:
             buttons.append(InlineKeyboardButton("التالي ➡️", callback_data="khatmah:next"))
         nav.add(*buttons)
-
         nav.add(
-            InlineKeyboardButton("🎧 سماع جزئي", callback_data="khatmah:listen"),
-            InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete")
+            InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete"),
+            InlineKeyboardButton("🏠 الرئيسية", callback_data="main")
         )
-        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
 
         bot.edit_message_text(
             msg,
@@ -220,4 +224,4 @@ def show_ayah(bot, message, user_id, juz, index):
             f"❌ خطأ: {e}",
             message.chat.id,
             message.message_id
-            )
+        )
