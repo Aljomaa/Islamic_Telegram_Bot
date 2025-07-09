@@ -238,12 +238,6 @@ def reset_misbaha(user_id):
 def get_active_khatmah():
     return khatmah_col.find_one({"status": "active"})
 
-def get_users_in_khatmah():
-    khatmah = get_active_khatmah()
-    if not khatmah:
-        return []
-    return [p["user_id"] for p in khatmah.get("participants", [])]
-
 def assign_juz_to_user(user_id):
     khatmah = get_active_khatmah()
     if not khatmah:
@@ -279,11 +273,11 @@ def assign_juz_to_user(user_id):
 
     if len(participants) + 1 == 30:
         khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
-        start_new_khatmah()
+        start_khatmah()
 
     return juz_number
 
-def start_new_khatmah():
+def start_khatmah():
     khatmah_number = khatmah_col.count_documents({}) + 1
     khatmah_col.insert_one({
         "number": khatmah_number,
@@ -329,10 +323,16 @@ def mark_juz_completed(user_id):
         khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "completed"}})
         notify_khatmah_completed(khatmah["number"])
 
+def get_users_in_khatmah(number):
+    khatmah = khatmah_col.find_one({"number": number})
+    return khatmah.get("participants", []) if khatmah else []
+
+# ✅ إشعارات
 def notify_khatmah_started(khatmah_number):
     khatmah = khatmah_col.find_one({"number": khatmah_number})
     if not khatmah or not khatmah.get("participants"):
         return
+
     for p in khatmah["participants"]:
         try:
             global_bot_instance.send_message(
@@ -348,6 +348,7 @@ def notify_khatmah_completed(khatmah_number):
     khatmah = khatmah_col.find_one({"number": khatmah_number})
     if not khatmah or not khatmah.get("participants"):
         return
+
     for p in khatmah["participants"]:
         try:
             global_bot_instance.send_message(
@@ -368,6 +369,6 @@ def get_bot_stats():
         "active_khatmah": khatmah_col.count_documents({"status": "active"})
     }
 
-# 🆔 معرفات المستخدمين (للبث الجماعي)
+# 🆔 جلب معرفات المستخدمين للبث الجماعي
 def get_all_user_ids():
     return [user["_id"] for user in user_col.find({}, {"_id": 1})]
