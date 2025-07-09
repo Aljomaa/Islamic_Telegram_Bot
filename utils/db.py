@@ -9,13 +9,13 @@ db = client["islamic_bot"]
 user_col = db["users"]
 comp_col = db["complaints"]
 admin_col = db["admins"]
+khatmah_col = db["khatmah"]
 
-# ✅ تسجيل المستخدم الجديد
+# ✅ تسجيل المستخدم
 def register_user(user):
     user_id = user.id if hasattr(user, 'id') else user
     full_name = user.full_name if hasattr(user, 'full_name') else "غير معروف"
     username = user.username if hasattr(user, 'username') else None
-
     user_col.update_one(
         {"_id": user_id},
         {
@@ -34,6 +34,18 @@ def register_user(user):
         },
         upsert=True
     )
+
+# ⭐ المفضلة
+def add_to_fav(user_id, type_, content):
+    user_col.update_one(
+        {"_id": user_id},
+        {"$push": {"favorites": {"type": type_, "content": content}}},
+        upsert=True
+    )
+
+def get_user_favs(user_id):
+    user = user_col.find_one({"_id": user_id})
+    return user.get("favorites", []) if user else []
 
 # 🕌 الموقع والتوقيت
 def set_user_location(user_id, lat, lon, timezone="auto"):
@@ -86,18 +98,6 @@ def update_reminder_setting(user_id, key, value: bool):
         upsert=True
     )
 
-# ⭐ المفضلة
-def add_to_fav(user_id, type_, content):
-    user_col.update_one(
-        {"_id": user_id},
-        {"$push": {"favorites": {"type": type_, "content": content}}},
-        upsert=True
-    )
-
-def get_user_favs(user_id):
-    user = user_col.find_one({"_id": user_id})
-    return user.get("favorites", []) if user else []
-
 # 🎧 القارئ المفضل
 def get_user_reciter(user_id):
     user = user_col.find_one({"_id": user_id})
@@ -114,7 +114,6 @@ def set_user_reciter(user_id, reciter):
 def add_complaint(msg, type_):
     media_type = None
     file_id = None
-
     if msg.text:
         content = msg.text
         media_type = 'text'
@@ -150,9 +149,6 @@ def add_complaint(msg, type_):
     })
     return True
 
-def get_complaints():
-    return list(comp_col.find({"status": "open"}))
-
 def get_all_complaints(filter_by=None):
     query = {}
     if filter_by:
@@ -162,49 +158,7 @@ def get_all_complaints(filter_by=None):
 def update_complaint_status(comp_id, status="closed"):
     comp_col.update_one({"_id": ObjectId(comp_id)}, {"$set": {"status": status}})
 
-def reply_to_complaint(comp_id, reply_text, bot=None):
-    comp = comp_col.find_one({"_id": ObjectId(comp_id)})
-    if not comp:
-        return False
-    user_id = comp["user_id"]
-    try:
-        message = f"📩 رد الإدارة على {'الشكوى' if comp['type'] == 'complaint' else 'الاقتراح'}:\n\n{reply_text}"
-        if bot:
-            bot.send_message(user_id, message)
-        else:
-            from loader import bot as default_bot
-            default_bot.send_message(user_id, message)
-        update_complaint_status(comp_id, "closed")
-        return True
-    except:
-        return False
-
-# 📊 الإحصائيات
-def get_bot_stats():
-    total_favorites_agg = list(user_col.aggregate([
-        {"$project": {"count": {"$size": {"$ifNull": ["$favorites", []]}}}},
-        {"$group": {"_id": None, "total": {"$sum": "$count"}}}
-    ]))
-    total_favorites = total_favorites_agg[0]["total"] if total_favorites_agg else 0
-
-    return {
-        "total_users": user_col.count_documents({}),
-        "total_favorites": total_favorites,
-        "total_complaints": comp_col.count_documents({})
-    }
-
-# 📢 رسالة جماعية
-def get_all_user_ids():
-    return [doc["_id"] for doc in user_col.find({}, {"_id": 1})]
-
-def broadcast_message(bot, message_text):
-    for user_id in get_all_user_ids():
-        try:
-            bot.send_message(user_id, message_text)
-        except:
-            continue
-
-# 👤 نظام المشرفين
+# 👤 المشرفين
 def is_admin(user_id_or_username):
     try:
         if str(user_id_or_username) == str(OWNER_ID):
@@ -230,10 +184,8 @@ def add_admin(identifier):
 
         if not user_doc:
             return False
-
         if admin_col.find_one({"_id": user_doc["_id"]}):
             return False
-
         admin_col.insert_one({
             "_id": user_doc["_id"],
             "username": user_doc.get("username")
@@ -258,7 +210,7 @@ def remove_admin(identifier):
 def get_admins():
     return list(admin_col.find({}))
 
-# ✅ المسبحة (Misbaha)
+# ✅ المسبحة
 def get_misbaha_count(user_id):
     user = db.misbaha.find_one({"user_id": user_id})
     return user["count"] if user and "count" in user else 0
@@ -276,3 +228,74 @@ def reset_misbaha(user_id):
         {"$set": {"count": 0}},
         upsert=True
     )
+
+# 📘 ختمتي
+def get_active_khatmah():
+    return khatmah_col.find_one({"status": "active"})
+
+def assign_juz_to_user(user_id):
+    khatmah = get_active_khatmah()
+    if not khatmah:
+        khatmah_number = khatmah_col.count_documents({}) + 1
+        khatmah = {
+            "number": khatmah_number,
+            "status": "active",
+            "participants": [],
+            "created_at": datetime.utcnow()
+        }
+        khatmah_col.insert_one(khatmah)
+        khatmah = get_active_khatmah()
+
+    participants = khatmah["participants"]
+    if any(p["user_id"] == user_id for p in participants):
+        return next(p for p in participants if p["user_id"] == user_id)
+
+    if len(participants) >= 30:
+        khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
+        return None
+
+    juz_number = len(participants) + 1
+    participant = {
+        "user_id": user_id,
+        "juz": juz_number,
+        "status": "assigned",
+        "joined_at": datetime.utcnow()
+    }
+    khatmah_col.update_one(
+        {"_id": khatmah["_id"]},
+        {"$push": {"participants": participant}}
+    )
+
+    # If 30 reached, open new khatmah
+    if len(participants) + 1 == 30:
+        khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
+        start_new_khatmah()
+
+    return participant
+
+def start_new_khatmah():
+    khatmah_number = khatmah_col.count_documents({}) + 1
+    khatmah_col.insert_one({
+        "number": khatmah_number,
+        "status": "active",
+        "participants": [],
+        "created_at": datetime.utcnow()
+    })
+
+def get_user_khatmah_part(user_id):
+    khatmah = khatmah_col.find_one({
+        "participants.user_id": user_id
+    }, {"participants.$": 1, "number": 1})
+    if khatmah and "participants" in khatmah:
+        return {
+            "khatmah_number": khatmah["number"],
+            "juz": khatmah["participants"][0]["juz"],
+            "status": khatmah["participants"][0]["status"]
+        }
+    return None
+
+def mark_juz_completed(user_id):
+    khatmah_col.update_one(
+        {"participants.user_id": user_id},
+        {"$set": {"participants.$.status": "completed"}}
+)
