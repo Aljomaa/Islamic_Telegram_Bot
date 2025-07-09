@@ -355,3 +355,26 @@ def notify_khatmah_completed(khatmah_number):
             )
         except:
             continue
+
+
+# 📊 إحصائيات البوت (للاستخدام في admin.py)
+def get_bot_stats():
+    return {
+        "users": user_col.count_documents({}),
+        "admins": admin_col.count_documents({}),
+        "complaints": comp_col.count_documents({}),
+        "khatmah": khatmah_col.count_documents({}),
+        "active_khatmah": khatmah_col.count_documents({"status": "active"})
+    }
+
+
+# 📊 إحصائيات البوت (مضافة لإصلاح الخطأ في admin.py)
+def get_bot_stats():
+    return {
+        "users": user_col.count_documents({}),
+        "admins": admin_col.count_documents({}),
+        "complaints": comp_col.count_documents({}),
+        "khatmah": khatmah_col.count_documents({}),
+        "active_khatmah": khatmah_col.count_documents({"status": "active"})
+        }
+        
