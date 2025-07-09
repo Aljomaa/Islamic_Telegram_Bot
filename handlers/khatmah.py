@@ -15,11 +15,8 @@ from utils.db import (
 from utils.menu import show_main_menu
 
 BASE_URL = "https://api.quran.gading.dev/juz/"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0"
-}
+HEADERS = {"User-Agent": "Mozilla/5.0"}
 
-# ✅ استخراج أسماء السور
 def get_surah_ranges():
     try:
         res = requests.get("https://api.quran.gading.dev/surah", headers=HEADERS)
@@ -43,7 +40,6 @@ def get_surah_name(in_quran_number, ranges):
             return name
     return "❓سورة غير معروفة"
 
-# ✅ دالة القائمة الرئيسية
 def show_khatmah_home(bot, message):
     markup = InlineKeyboardMarkup()
     markup.add(
@@ -58,11 +54,9 @@ def show_khatmah_home(bot, message):
         reply_markup=markup
     )
 
-# ✅ استدعاء خارجي لزر ختمتي
 def show_khatmah_menu_entry(bot, message):
     show_khatmah_home(bot, message)
 
-# ✅ تسجيل الكول باك
 def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("khatmah:"))
     def handle_khatmah_buttons(call):
@@ -71,7 +65,6 @@ def register(bot):
         action_data = call.data.split(":")
         action = action_data[1]
         juz = get_user_juz(user_id)
-        khatmah_started = get_khatmah_status(user_id)
 
         if action == "info":
             bot.edit_message_text(
@@ -90,28 +83,38 @@ def register(bot):
 
         elif action == "join":
             if juz:
+                markup = InlineKeyboardMarkup(row_width=2)
+                markup.add(
+                    InlineKeyboardButton("📖 جزئي", callback_data="khatmah:myjuz"),
+                    InlineKeyboardButton("🎧 سماع جزئي", callback_data="khatmah:listen"),
+                    InlineKeyboardButton("📊 حالة الختمة", callback_data="khatmah:status"),
+                    InlineKeyboardButton("📌 حالة جزئي", callback_data="khatmah:mystatus"),
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                )
                 bot.edit_message_text(
                     f"📘 أنت بالفعل مشترك في ختمة.\n"
-                    f"✅ الجزء المخصص لك: {juz}\n"
-                    f"⏳ انتظر حتى تكتمل الختمة ليبدأ التلاوة.",
+                    f"✅ الجزء المخصص لك: {juz}",
                     call.message.chat.id,
                     call.message.message_id,
-                    reply_markup=InlineKeyboardMarkup().add(
-                        InlineKeyboardButton("➡️ عرض الجزء", callback_data="khatmah:myjuz")
-                    )
+                    reply_markup=markup
                 )
             else:
                 assigned = assign_juz_to_user(user_id)
                 if assigned:
+                    markup = InlineKeyboardMarkup(row_width=2)
+                    markup.add(
+                        InlineKeyboardButton("📖 جزئي", callback_data="khatmah:myjuz"),
+                        InlineKeyboardButton("🎧 سماع جزئي", callback_data="khatmah:listen"),
+                        InlineKeyboardButton("📊 حالة الختمة", callback_data="khatmah:status"),
+                        InlineKeyboardButton("📌 حالة جزئي", callback_data="khatmah:mystatus"),
+                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                    )
                     bot.edit_message_text(
                         f"✅ تم تسجيلك بنجاح!\n"
-                        f"📘 الجزء المخصص لك: {assigned}\n"
-                        "⏳ سيتم إشعارك عند بدء الختمة بإذن الله.",
+                        f"📘 الجزء المخصص لك: {assigned}",
                         call.message.chat.id,
                         call.message.message_id,
-                        reply_markup=InlineKeyboardMarkup().add(
-                            InlineKeyboardButton("🏠 الرئيسية", callback_data="main")
-                        )
+                        reply_markup=markup
                     )
                 else:
                     bot.edit_message_text(
@@ -129,7 +132,6 @@ def register(bot):
                     call.message.message_id
                 )
                 return
-            # ✅ مؤقتًا نسمح بقراءة الجزء حتى لو لم تبدأ الختمة
             index = get_last_ayah_index(user_id) or 0
             show_ayah(bot, call.message, user_id, juz, index)
 
@@ -158,10 +160,37 @@ def register(bot):
                 call.message.message_id
             )
 
+        elif action == "status":
+            kh_num = get_khatmah_number(user_id)
+            users = get_users_in_khatmah(kh_num)
+            completed = sum(1 for u in users if u["status"] == "completed")
+            total = len(users)
+            bot.edit_message_text(
+                f"📊 حالة الختمة:\n"
+                f"📘 ختمة رقم: {kh_num}\n"
+                f"✅ المكتمل: {completed} من {total}",
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=InlineKeyboardMarkup().add(
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
+                )
+            )
+
+        elif action == "mystatus":
+            status = get_juz_status(user_id)
+            msg = "✅ لقد أنهيت الجزء الخاص بك. أحسنت!" if status else "⏳ لم تكمل الجزء بعد. تابع التلاوة."
+            bot.edit_message_text(
+                f"📌 حالة جزئك:\n{msg}",
+                call.message.chat.id,
+                call.message.message_id,
+                reply_markup=InlineKeyboardMarkup().add(
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
+                )
+            )
+
         elif action == "main":
             show_main_menu(bot, call.message)
 
-# ✅ عرض آية واحدة مع أزرار التنقل
 def show_ayah(bot, message, user_id, juz, index):
     try:
         res = requests.get(BASE_URL + str(juz), headers=HEADERS)
@@ -190,7 +219,7 @@ def show_ayah(bot, message, user_id, juz, index):
             InlineKeyboardButton("🎧 سماع جزئي", callback_data="khatmah:listen"),
             InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete")
         )
-        nav.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main"))
+        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
 
         bot.edit_message_text(
             msg,
