@@ -14,13 +14,13 @@ from utils.menu import show_main_menu
 
 BASE_URL = "https://api.quran.gading.dev/juz/"
 
+# ✅ استخراج أسماء السور
 def get_surah_ranges():
     try:
         res = requests.get("https://api.quran.gading.dev/surah")
         data = res.json()["data"]
         surah_ranges = []
         in_quran_counter = 1
-
         for surah in data:
             total_ayahs = surah["numberOfVerses"]
             name = surah["name"]["short"]
@@ -28,7 +28,6 @@ def get_surah_ranges():
             end = start + total_ayahs - 1
             surah_ranges.append((start, end, name))
             in_quran_counter = end + 1
-
         return surah_ranges
     except Exception:
         return []
@@ -39,22 +38,27 @@ def get_surah_name(in_quran_number, ranges):
             return name
     return "❓سورة غير معروفة"
 
-def register(bot):
-    @bot.callback_query_handler(func=lambda call: call.data == "menu:khatmah")
-    def show_khatmah_home(call):
-        markup = InlineKeyboardMarkup()
-        markup.add(
-            InlineKeyboardButton("❓ ما هي ختمة؟", callback_data="khatmah:info"),
-            InlineKeyboardButton("📥 الانضمام إلى ختمة", callback_data="khatmah:join")
-        )
-        bot.edit_message_text(
-            "📖 *أهلاً بك في ختمة القرآن الجماعية!*",
-            call.message.chat.id,
-            call.message.message_id,
-            parse_mode="Markdown",
-            reply_markup=markup
-        )
+# ✅ دالة عرض قائمة ختمة القرآن - خارج register
+def show_khatmah_home(bot, message):
+    markup = InlineKeyboardMarkup()
+    markup.add(
+        InlineKeyboardButton("❓ ما هي ختمة؟", callback_data="khatmah:info"),
+        InlineKeyboardButton("📥 الانضمام إلى ختمة", callback_data="khatmah:join")
+    )
+    bot.edit_message_text(
+        "📖 *أهلاً بك في ختمة القرآن الجماعية!*",
+        message.chat.id,
+        message.message_id,
+        parse_mode="Markdown",
+        reply_markup=markup
+    )
 
+# ✅ هذه الدالة لحل مشكلة زر ختمتي
+def show_khatmah_menu_entry(bot, message):
+    show_khatmah_home(bot, message)
+
+# ✅ تسجيل الكول باك الخاص بالختمة
+def register(bot):
     @bot.callback_query_handler(func=lambda call: call.data.startswith("khatmah:"))
     def handle_khatmah_buttons(call):
         user_id = call.from_user.id
@@ -139,12 +143,12 @@ def register(bot):
         elif action == "main":
             show_main_menu(bot, call.message)
 
+# ✅ عرض الجزء المخصص للمستخدم
 def show_user_juz(bot, message, user_id, juz):
     try:
         res = requests.get(BASE_URL + str(juz))
         if res.status_code != 200:
             raise Exception("فشل في جلب الجزء.")
-
         data = res.json()["data"]
         ayahs = data["ayahs"]
         ranges = get_surah_ranges()
@@ -187,13 +191,3 @@ def show_user_juz(bot, message, user_id, juz):
             message.chat.id,
             message.message_id
         )
-
-# ✅ هذه الدالة الجديدة لحل مشكلة زر "ختمتي"
-def show_khatmah_menu_entry(bot, message):
-    class DummyCall:
-        def __init__(self, message):
-            self.data = "menu:khatmah"
-            self.message = message
-            self.from_user = message.from_user
-            self.id = "dummy_id"
-    show_khatmah_home(DummyCall(message))
