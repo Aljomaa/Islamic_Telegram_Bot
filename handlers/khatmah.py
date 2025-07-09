@@ -16,6 +16,7 @@ from utils.menu import show_main_menu
 BASE_URL = "https://api.quran.gading.dev/juz/"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+
 def get_surah_ranges():
     try:
         res = requests.get("https://api.quran.gading.dev/surah", headers=HEADERS)
@@ -45,7 +46,7 @@ def show_khatmah_home(bot, message):
         InlineKeyboardButton("❓ ما هي ختمة؟", callback_data="khatmah:info"),
         InlineKeyboardButton("📥 الانضمام إلى ختمة", callback_data="khatmah:join")
     )
-    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
+    markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main"))
     bot.edit_message_text(
         "📖 *أهلاً بك في ختمة القرآن الجماعية!*",
         message.chat.id,
@@ -67,7 +68,7 @@ def register(bot):
         juz = get_user_juz(user_id)
 
         if action == "info":
-            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_main"))
+            markup = InlineKeyboardMarkup().add(InlineKeyboardButton("⬅️ رجوع", callback_data="main"))
             bot.edit_message_text(
                 "*📖 ما هي ختمة؟*\n\n"
                 "هي ختمة جماعية يشارك فيها 30 مسلم، كل واحد يقرأ جزء.\n"
@@ -101,6 +102,15 @@ def register(bot):
                     call.message.message_id
                 )
                 return
+            khatmah_started = get_khatmah_status(user_id)
+            if not khatmah_started:
+                bot.edit_message_text(
+                    "📌 لم تبدأ الختمة بعد.\n"
+                    "سأخبرك عند اكتمال العدد لتبدأ التلاوة بإذن الله.",
+                    call.message.chat.id,
+                    call.message.message_id
+                )
+                return
             index = get_last_ayah_index(user_id) or 0
             show_ayah(bot, call.message, user_id, juz, index)
 
@@ -119,7 +129,7 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main")
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
                 )
             )
 
@@ -135,7 +145,7 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_main")
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
                 )
             )
 
@@ -147,7 +157,7 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("⬅️ رجوع", callback_data="back_to_main")
+                    InlineKeyboardButton("⬅️ رجوع", callback_data="main")
                 )
             )
 
@@ -161,10 +171,10 @@ def show_juz_menu(bot, message, juz):
         InlineKeyboardButton("📊 حالة الختمة", callback_data="khatmah:status"),
         InlineKeyboardButton("📌 حالة جزئي", callback_data="khatmah:mystatus")
     )
-    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
+    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
     bot.edit_message_text(
         f"📘 الجزء المخصص لك هو: {juz}\n"
-        "يمكنك الآن البدء بالتلاوة أو متابعة الحالة.",
+        "يمكنك الآن البدء بالتلاوة عندما تبدأ الختمة.",
         message.chat.id,
         message.message_id,
         reply_markup=markup
@@ -195,12 +205,9 @@ def show_ayah(bot, message, user_id, juz, index):
             buttons.append(InlineKeyboardButton("⬅️ السابق", callback_data="khatmah:prev"))
         if index < len(verses) - 1:
             buttons.append(InlineKeyboardButton("التالي ➡️", callback_data="khatmah:next"))
-        if buttons:
-            nav.add(*buttons)
-        nav.add(
-            InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete")
-        )
-        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="back_to_main"))
+        nav.add(*buttons)
+        nav.add(InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete"))
+        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
 
         bot.edit_message_text(
             msg,
@@ -214,4 +221,4 @@ def show_ayah(bot, message, user_id, juz, index):
             f"❌ خطأ: {e}",
             message.chat.id,
             message.message_id
-    )
+            )
