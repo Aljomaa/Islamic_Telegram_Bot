@@ -46,7 +46,7 @@ def show_khatmah_home(bot, message):
         InlineKeyboardButton("❓ ما هي ختمة؟", callback_data="khatmah:info"),
         InlineKeyboardButton("📥 الانضمام إلى ختمة", callback_data="khatmah:join")
     )
-    markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main"))
+    markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main_menu"))
     bot.edit_message_text(
         "📖 *أهلاً بك في ختمة القرآن الجماعية!*",
         message.chat.id,
@@ -70,7 +70,7 @@ def register(bot):
         if action == "info":
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"))
-            markup.add(InlineKeyboardButton("🏠 الرئيسية", callback_data="main"))
+            markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu"))
             bot.edit_message_text(
                 "📖 *الختمة القرآنية* هي فرصة عظيمة لختم كتاب الله الكريم جماعيًا، حيث يقرأ كل مشترك جزءًا واحدًا بنيّة ختم القرآن كاملًا مع إخوانه وأخواته.\n\n"
                 "🤲 انضمامك معنا لا يستغرق منك وقتًا طويلًا، لكنه يفتح لك بابًا من الأجر لا يُغلق، فقد قال ﷺ:\n"
@@ -97,7 +97,7 @@ def register(bot):
                         call.message.chat.id,
                         call.message.message_id,
                         reply_markup=InlineKeyboardMarkup().add(
-                            InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                            InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu")
                         )
                     )
 
@@ -109,7 +109,7 @@ def register(bot):
                     call.message.message_id,
                     reply_markup=InlineKeyboardMarkup().add(
                         InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
-                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu")
                     )
                 )
                 return
@@ -122,7 +122,7 @@ def register(bot):
                     call.message.message_id,
                     reply_markup=InlineKeyboardMarkup().add(
                         InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
-                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                        InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu")
                     )
                 )
                 return
@@ -144,7 +144,7 @@ def register(bot):
                 call.message.chat.id,
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
-                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu")
                 )
             )
 
@@ -161,7 +161,7 @@ def register(bot):
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
                     InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
-                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu")
                 )
             )
 
@@ -174,9 +174,14 @@ def register(bot):
                 call.message.message_id,
                 reply_markup=InlineKeyboardMarkup().add(
                     InlineKeyboardButton("⬅️ رجوع", callback_data="menu:khatmah"),
-                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main")
+                    InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu")
                 )
             )
+
+    # ✅ زر العودة للرئيسية
+    @bot.callback_query_handler(func=lambda call: call.data == "main_menu")
+    def return_to_main_menu(call):
+        show_main_menu(bot, call.message)
 
 def show_juz_menu(bot, message, juz):
     markup = InlineKeyboardMarkup(row_width=2)
@@ -185,7 +190,7 @@ def show_juz_menu(bot, message, juz):
         InlineKeyboardButton("📊 حالة الختمة", callback_data="khatmah:status"),
         InlineKeyboardButton("📌 حالة جزئي", callback_data="khatmah:mystatus")
     )
-    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
+    markup.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu"))
     bot.edit_message_text(
         f"📘 الجزء المخصص لك هو: {juz}\n"
         "يمكنك الآن البدء بالتلاوة عندما تبدأ الختمة.",
@@ -221,7 +226,7 @@ def show_ayah(bot, message, user_id, juz, index):
             buttons.append(InlineKeyboardButton("التالي ➡️", callback_data="khatmah:next"))
         nav.add(*buttons)
         nav.add(InlineKeyboardButton("✅ أنهيت الجزء", callback_data="khatmah:complete"))
-        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main"))
+        nav.add(InlineKeyboardButton("🏠 العودة إلى القائمة الرئيسية", callback_data="main_menu"))
 
         bot.edit_message_text(
             msg,
