@@ -280,9 +280,16 @@ def assign_juz_to_user(user_id):
     return juz_number
 
 def force_start_khatmah():
-    khatmah = khatmah_col.find_one({"status": "active"})
-    if not khatmah or len(khatmah.get("participants", [])) < 1:
+    # ابحث عن ختمة حالتها active أو full
+    khatmah = khatmah_col.find_one({"status": {"$in": ["active", "full"]}})
+    if not khatmah:
         return False
+
+    participants = khatmah.get("participants", [])
+    if len(participants) < 30:
+        return False
+
+    # ابدأ الختمة
     khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "started"}})
     notify_khatmah_started(khatmah["number"])
     return True
