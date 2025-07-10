@@ -256,7 +256,6 @@ def assign_juz_to_user(user_id):
         return next(p["juz"] for p in participants if p["user_id"] == user_id)
 
     if len(participants) >= 30:
-        khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
         return None
 
     juz_number = len(participants) + 1
@@ -272,8 +271,11 @@ def assign_juz_to_user(user_id):
     )
 
     if len(participants) + 1 == 30:
-        khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "full"}})
-        start_khatmah()
+        khatmah_col.update_one(
+            {"_id": khatmah["_id"]},
+            {"$set": {"status": "started"}}
+        )
+        notify_khatmah_started(khatmah["number"])
 
     return juz_number
 
