@@ -1,5 +1,5 @@
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from utils.db import is_admin, add_admin, remove_admin, get_bot_stats, get_admins, get_all_user_ids
+from utils.db import is_admin, add_admin, remove_admin, get_bot_stats, get_admins, get_all_user_ids, force_start_khatmah
 from config import OWNER_ID
 
 broadcast_cache = {}
@@ -15,7 +15,7 @@ def register(bot):
 
         elif data[1] == "stats":
             stats = get_bot_stats()
-            msg = f"📊 إحصائيات البوت:\n\n👤 المستخدمون: {stats['total_users']}\n⭐ المفضلة: {stats['total_favorites']}\n📝 الشكاوى: {stats['total_complaints']}"
+            msg = f"📊 إحصائيات البوت:\n\n👤 المستخدمون: {stats['users']}\n📝 الشكاوى: {stats['complaints']}\n📘 الختمات: {stats['khatmah']}"
             back_button = InlineKeyboardMarkup().add(InlineKeyboardButton("🔙 عودة", callback_data="admin:menu"))
             bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=back_button)
 
@@ -59,6 +59,11 @@ def register(bot):
                 show_admin_menu(bot, call.message.chat.id, call.message.message_id)
             else:
                 bot.answer_callback_query(call.id, "❌ فشل في إزالة المشرف.")
+
+        elif data[1] == "startkhatmah":
+            success = force_start_khatmah()
+            msg = "✅ تم بدء الختمة الحالية بنجاح." if success else "❌ لا توجد ختمة يمكن بدءها أو الختمة بدأت بالفعل."
+            bot.edit_message_text(msg, call.message.chat.id, call.message.message_id)
 
     @bot.callback_query_handler(func=lambda call: call.data == "broadcast:start")
     def start_broadcast(call):
@@ -116,32 +121,26 @@ def preview_broadcast(bot, msg):
     if msg.text:
         media_type = 'text'
         broadcast_cache[msg.from_user.id] = {"type": "text", "text": msg.text}
-
     elif msg.photo:
         media_type = 'photo'
         file_id = msg.photo[-1].file_id
         broadcast_cache[msg.from_user.id] = {"type": "photo", "file_id": file_id, "caption": caption}
-
     elif msg.video:
         media_type = 'video'
         file_id = msg.video.file_id
         broadcast_cache[msg.from_user.id] = {"type": "video", "file_id": file_id, "caption": caption}
-
     elif msg.voice:
         media_type = 'voice'
         file_id = msg.voice.file_id
         broadcast_cache[msg.from_user.id] = {"type": "voice", "file_id": file_id, "caption": caption}
-
     elif msg.document:
         media_type = 'document'
         file_id = msg.document.file_id
         broadcast_cache[msg.from_user.id] = {"type": "document", "file_id": file_id, "caption": caption}
-
     elif msg.sticker:
         media_type = 'sticker'
         file_id = msg.sticker.file_id
         broadcast_cache[msg.from_user.id] = {"type": "sticker", "file_id": file_id}
-
     else:
         bot.send_message(msg.chat.id, "❌ نوع الرسالة غير مدعوم.")
         return
@@ -172,8 +171,9 @@ def show_admin_menu(bot, chat_id, message_id):
         InlineKeyboardButton("📊 الإحصائيات", callback_data="admin:stats"),
         InlineKeyboardButton("📢 إرسال رسالة جماعية", callback_data="broadcast:start"),
         InlineKeyboardButton("➕ إضافة مشرف", callback_data="admin:add"),
-        InlineKeyboardButton("👥 عرض المشرفين", callback_data="admin:list")
+        InlineKeyboardButton("👥 عرض المشرفين", callback_data="admin:list"),
     )
+    markup.add(InlineKeyboardButton("🚀 بدء الختمة الحالية", callback_data="admin:startkhatmah"))
     markup.add(InlineKeyboardButton("🔙 العودة للقائمة الرئيسية", callback_data="back_to_main"))
 
     bot.edit_message_text("🧑‍💼 لوحة المشرف:", chat_id, message_id, reply_markup=markup)
