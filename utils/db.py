@@ -305,9 +305,9 @@ def get_khatmah_number(user_id):
     return khatmah["number"] if khatmah else None
 
 def get_khatmah_status(user_id):
-    khatmah = khatmah_col.find_one({"participants.user_id": user_id}, {"participants.$": 1})
+    khatmah = khatmah_col.find_one({"participants.user_id": user_id})
     if khatmah:
-        return khatmah.get("status", "unknown") == "completed"
+        return khatmah.get("status") in ["started", "completed"]
     return False
 
 def get_juz_status(user_id):
