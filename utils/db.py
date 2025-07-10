@@ -279,15 +279,13 @@ def assign_juz_to_user(user_id):
 
     return juz_number
 
-def start_khatmah():
-    khatmah_number = khatmah_col.count_documents({}) + 1
-    khatmah_col.insert_one({
-        "number": khatmah_number,
-        "status": "active",
-        "participants": [],
-        "created_at": datetime.utcnow()
-    })
-    notify_khatmah_started(khatmah_number)
+def force_start_khatmah():
+    khatmah = khatmah_col.find_one({"status": "active"})
+    if not khatmah or len(khatmah.get("participants", [])) < 1:
+        return False
+    khatmah_col.update_one({"_id": khatmah["_id"]}, {"$set": {"status": "started"}})
+    notify_khatmah_started(khatmah["number"])
+    return True
 
 def get_user_juz(user_id):
     khatmah = khatmah_col.find_one({"participants.user_id": user_id}, {"participants.$": 1})
@@ -385,4 +383,4 @@ def set_last_ayah_index(user_id, index):
         {"_id": user_id},
         {"$set": {"last_ayah_index": index}},
         upsert=True
-    )
+            )
