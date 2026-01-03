@@ -1,22 +1,40 @@
 import telebot
+from flask import Flask, request
 from config import BOT_TOKEN, OWNER_ID
 from handlers import prayers, quran, athkar, favorites, complaints, admin, hadith, settings, misbaha, khatmah
 from tasks import reminders
-from utils.db import is_admin, add_admin, register_user
-import threading
-from flask import Flask
+from utils.db import is_admin, add_admin, register_user, set_bot_instance
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+import os
 
+# ======================
+# إعدادات أساسية
+# ======================
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# تمرير كائن البوت إلى db.py لإرسال الرسائل من داخله
-from utils.db import set_bot_instance
 set_bot_instance(bot)
 
-# ✅ بدء التذكيرات
-reminders.start_reminders(bot)
+app = Flask(__name__)
 
-# ✅ عرض القائمة الرئيسية
+# رابط Render (يتم أخذه من متغير البيئة)
+RENDER_URL = os.environ.get("RENDER_EXTERNAL_URL")
+
+# ======================
+# Webhook
+# ======================
+@app.route(f"/{BOT_TOKEN}", methods=["POST"])
+def webhook():
+    json_str = request.get_data().decode("UTF-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
+    return "OK", 200
+
+@app.route("/")
+def home():
+    return "Bot is running with Webhook ✅"
+
+# ======================
+# القائمة الرئيسية
+# ======================
 def show_main_menu(bot, message):
     markup = InlineKeyboardMarkup(row_width=2)
     markup.add(
@@ -40,9 +58,11 @@ def show_main_menu(bot, message):
         reply_markup=markup
     )
 
-@bot.message_handler(commands=['start'])
+# ======================
+# /start
+# ======================
+@bot.message_handler(commands=["start"])
 def welcome(msg):
-    print(f"✅ تم استقبال أمر /start من: {msg.from_user.id}")
     register_user(msg.from_user)
 
     markup = InlineKeyboardMarkup(row_width=2)
@@ -66,58 +86,53 @@ def welcome(msg):
         reply_markup=markup
     )
 
+# ======================
+# Callback Menu
+# ======================
 @bot.callback_query_handler(func=lambda call: call.data.startswith("menu:") or call.data == "back_to_main")
 def handle_main_menu(call):
     bot.answer_callback_query(call.id)
     action = call.data.split(":")[1] if ":" in call.data else "main"
 
     if action == "prayer":
-        from handlers.prayers import show_prayer_times
-        show_prayer_times(bot, call.message)
+        prayers.show_prayer_times(bot, call.message)
 
     elif action == "quran":
-        from handlers.quran import show_main_quran_menu
-        show_main_quran_menu(bot, call.message.chat.id, call.message.message_id)
+        quran.show_main_quran_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "athkar":
-        from handlers.athkar import show_athkar_menu
-        show_athkar_menu(bot, call.message.chat.id, call.message.message_id)
+        athkar.show_athkar_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "hadith":
-        from handlers.hadith import show_hadith_menu
-        show_hadith_menu(bot, call.message)
+        hadith.show_hadith_menu(bot, call.message)
 
     elif action == "misbaha":
-        from handlers.misbaha import show_misbaha_menu
-        show_misbaha_menu(bot, call.message.chat.id, call.message.message_id)
+        misbaha.show_misbaha_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "fav":
-        from handlers.favorites import show_fav_main_menu
-        show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
+        favorites.show_fav_main_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "complain":
-        from handlers.complaints import show_complaint_menu
-        show_complaint_menu(bot, call.message.chat.id, call.message.message_id)
+        complaints.show_complaint_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "admin":
         if is_admin(call.from_user.id):
-            from handlers.admin import show_admin_menu
-            show_admin_menu(bot, call.message.chat.id, call.message.message_id)
+            admin.show_admin_menu(bot, call.message.chat.id, call.message.message_id)
         else:
             bot.send_message(call.message.chat.id, "❌ هذا الخيار مخصص للمشرف فقط.")
 
     elif action == "settings":
-        from handlers.settings import show_settings_menu
-        show_settings_menu(bot, call.message.chat.id, call.message.message_id)
+        settings.show_settings_menu(bot, call.message.chat.id, call.message.message_id)
 
     elif action == "khatmah":
-        from handlers.khatmah import show_khatmah_menu_entry
-        show_khatmah_menu_entry(bot, call.message)
+        khatmah.show_khatmah_menu_entry(bot, call.message)
 
     elif action == "main" or call.data == "back_to_main":
         show_main_menu(bot, call.message)
 
-# ✅ تسجيل باقي الأوامر
+# ======================
+# تسجيل الـ handlers
+# ======================
 prayers.register(bot)
 quran.register(bot)
 athkar.register(bot)
@@ -130,25 +145,19 @@ settings.register(bot)
 misbaha.register(bot)
 khatmah.register(bot)
 
-# ✅ تشغيل البوت و Flask
-def run_bot():
-    bot.infinity_polling()
+# ======================
+# تشغيل السيرفر + Webhook
+# ======================
+if __name__ == "__main__":
+    bot.remove_webhook()
 
-app = Flask(__name__)
+    if RENDER_URL:
+        webhook_url = f"{RENDER_URL}/{BOT_TOKEN}"
+        bot.set_webhook(url=webhook_url)
 
-@app.route('/')
-def home():
-    return "Bot is running!"
+    reminders.start_reminders(bot)
 
-if __name__ == '__main__':
     if not is_admin(OWNER_ID):
-        print('🔐 إضافة المالك كمشرف...')
-        if add_admin(OWNER_ID):
-            print("✅ تمت إضافة مالك البوت كمشرف.")
-        else:
-            print("⚠️ فشل في إضافة المشرف.")
-    else:
-        print("ℹ️ مالك البوت هو بالفعل مشرف.")
+        add_admin(OWNER_ID)
 
-    threading.Thread(target=run_bot).start()
     app.run(host="0.0.0.0", port=10000)
